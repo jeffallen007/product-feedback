@@ -1,0 +1,131 @@
+"use client"
+
+import { Card } from "@/components/ui/card"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  LabelList,
+} from "recharts"
+import {
+  SENTIMENT_OVERALL,
+  SENTIMENT_BY_SOURCE,
+} from "@/lib/analysis-data"
+
+const SENTIMENT_COLORS: Record<string, string> = {
+  positive: "var(--color-chart-3)",
+  neutral: "var(--color-chart-4)",
+  negative: "var(--color-chart-5)",
+}
+
+export function SentimentOverview() {
+  return (
+    <Card className="p-5">
+      <h3 className="text-sm font-semibold text-foreground">
+        Sentiment Overview
+      </h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Distribution across all analyzed feedback
+      </p>
+
+      <div className="mt-4 grid gap-6 sm:grid-cols-2">
+        {/* Donut */}
+        <div className="flex flex-col items-center">
+          <ChartContainer
+            config={{
+              value: { label: "Share" },
+              positive: { label: "Positive", color: "var(--chart-3)" },
+              neutral: { label: "Neutral", color: "var(--chart-4)" },
+              negative: { label: "Negative", color: "var(--chart-5)" },
+            }}
+            className="aspect-square h-[180px]"
+          >
+            <PieChart>
+              <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+              <Pie
+                data={SENTIMENT_OVERALL}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={50}
+                outerRadius={75}
+                strokeWidth={2}
+              >
+                {SENTIMENT_OVERALL.map((entry) => (
+                  <Cell
+                    key={entry.key}
+                    fill={SENTIMENT_COLORS[entry.key]}
+                  />
+                ))}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+          <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+            {SENTIMENT_OVERALL.map((s) => (
+              <div key={s.key} className="flex items-center gap-1.5">
+                <span
+                  className="size-2.5 rounded-sm"
+                  style={{ backgroundColor: SENTIMENT_COLORS[s.key] }}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {s.name} {s.value}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Negative by source */}
+        <div>
+          <p className="mb-2 text-xs font-medium text-foreground">
+            Negative sentiment by source
+          </p>
+          <ChartContainer
+            config={{
+              negative: { label: "Negative %", color: "var(--chart-5)" },
+            }}
+            className="h-[180px] w-full"
+          >
+            <BarChart
+              data={SENTIMENT_BY_SOURCE}
+              layout="vertical"
+              margin={{ left: 0, right: 24, top: 4, bottom: 4 }}
+            >
+              <XAxis type="number" domain={[0, 100]} hide />
+              <YAxis
+                type="category"
+                dataKey="source"
+                tickLine={false}
+                axisLine={false}
+                width={96}
+                tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar
+                dataKey="negative"
+                fill="var(--color-negative)"
+                radius={4}
+                barSize={18}
+              >
+                <LabelList
+                  dataKey="negative"
+                  position="right"
+                  formatter={(v: number) => `${v}%`}
+                  className="fill-muted-foreground text-[11px]"
+                />
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+        </div>
+      </div>
+    </Card>
+  )
+}
