@@ -12,10 +12,14 @@ import { ProcessingState } from "@/components/processing-state"
 import { Dashboard } from "@/components/dashboard/dashboard"
 import {
   DEMO_PRODUCTS,
+  EMPTY_PRODUCT_CONTEXT,
+  SOURCE_TAG_BY_TYPE,
   type ConfiguredSource,
+  type DemoProductId,
   type ProductContext,
-  type SourceId,
-} from "@/lib/feedback-data"
+  type WorkflowSourceId,
+} from "@/lib/mocks/workflow"
+import type { AnalysisGoal } from "@/lib/types/contracts"
 
 type Path = "demo" | "custom"
 type Screen =
@@ -30,27 +34,30 @@ type Screen =
 const DEMO_STEPS = ["Product", "Review"]
 const CUSTOM_STEPS = ["Sources", "Configure", "Review"]
 
-const EMPTY_PRODUCT: ProductContext = { name: "", description: "" }
-
 export default function Page() {
   const [screen, setScreen] = useState<Screen>("entry")
   const [path, setPath] = useState<Path>("demo")
 
   // Demo path
-  const [demoProduct, setDemoProduct] = useState("productivity")
+  const [demoProduct, setDemoProduct] =
+    useState<DemoProductId>("productivity")
 
   // Custom path
-  const [product, setProduct] = useState<ProductContext>(EMPTY_PRODUCT)
-  const [selected, setSelected] = useState<SourceId[]>(["csv"])
+  const [product, setProduct] = useState<ProductContext>(EMPTY_PRODUCT_CONTEXT)
+  const [selected, setSelected] = useState<WorkflowSourceId[]>(["csv"])
   const [searchQuery, setSearchQuery] = useState("")
   const [pasteValue, setPasteValue] = useState("")
 
   // Review
-  const [goal, setGoal] = useState("Full Product Feedback Synthesis")
-  const [reviewProduct, setReviewProduct] = useState<ProductContext>(EMPTY_PRODUCT)
+  const [goal, setGoal] = useState<AnalysisGoal>(
+    "Full Product Feedback Synthesis",
+  )
+  const [reviewProduct, setReviewProduct] = useState<ProductContext>(
+    EMPTY_PRODUCT_CONTEXT,
+  )
   const [reviewSources, setReviewSources] = useState<ConfiguredSource[]>([])
 
-  function toggleSource(id: SourceId) {
+  function toggleSource(id: WorkflowSourceId) {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
     )
@@ -64,7 +71,7 @@ export default function Page() {
 
   function startCustom() {
     setPath("custom")
-    setProduct(EMPTY_PRODUCT)
+    setProduct(EMPTY_PRODUCT_CONTEXT)
     setSelected(["csv"])
     setScreen("sources")
   }
@@ -80,9 +87,10 @@ export default function Page() {
     setReviewSources([
       {
         id: "demo-" + demoProduct,
-        type: "Demo Dataset",
-        label: `${dp?.label ?? "Productivity Tool"} Demo Dataset`,
-        count: dp?.count ?? 482,
+        sourceType: "demo_dataset",
+        sourceTag: "Demo Dataset",
+        sourceLabel: `${dp?.label ?? "Productivity Tool"} Demo Dataset`,
+        itemCount: dp?.count ?? 482,
         status: "Ready",
       },
     ])
@@ -94,32 +102,35 @@ export default function Page() {
     setReviewProduct(product)
     // Preserve any demo dataset sources already in the set (enrichment flow).
     const result: ConfiguredSource[] = reviewSources.filter(
-      (s) => s.type === "Demo Dataset",
+      (s) => s.sourceType === "demo_dataset",
     )
     if (selected.includes("csv")) {
       result.push({
         id: "csv-upload",
-        type: "CSV Upload",
-        label: "Uploaded CSV",
-        count: 318,
+        sourceType: "csv_upload",
+        sourceTag: SOURCE_TAG_BY_TYPE.csv_upload,
+        sourceLabel: "Uploaded CSV",
+        itemCount: 318,
         status: "Ready",
       })
     }
     if (selected.includes("paste")) {
       result.push({
         id: "pasted",
-        type: "Pasted Feedback",
-        label: "Pasted Reviews",
-        count: 24,
+        sourceType: "pasted_text",
+        sourceTag: SOURCE_TAG_BY_TYPE.pasted_text,
+        sourceLabel: "Pasted Reviews",
+        itemCount: 24,
         status: "Ready",
       })
     }
     if (selected.includes("search")) {
       result.push({
         id: "x-search",
-        type: "X Search",
-        label: `X Search: "${searchQuery || "Monday.com notifications"}"`,
-        count: 86,
+        sourceType: "x_search",
+        sourceTag: SOURCE_TAG_BY_TYPE.x_search,
+        sourceLabel: `X Search: "${searchQuery || "Monday.com notifications"}"`,
+        itemCount: 86,
         status: "Ready",
       })
     }
@@ -142,7 +153,7 @@ export default function Page() {
 
   function startNewAnalysis() {
     setScreen("entry")
-    setProduct(EMPTY_PRODUCT)
+    setProduct(EMPTY_PRODUCT_CONTEXT)
     setSelected(["csv"])
     setReviewSources([])
   }

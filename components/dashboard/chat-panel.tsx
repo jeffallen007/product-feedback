@@ -12,23 +12,41 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sparkles, Send, MessageSquarePlus } from "lucide-react"
 import {
+  CANNED_CHAT_RESPONSES,
+  CHAT_SCOPE_OPTIONS,
+  DEFAULT_CHAT_RESPONSE,
   SUGGESTED_PROMPTS,
-  SCOPE_OPTIONS,
-  CANNED_ANSWERS,
-  DEFAULT_ANSWER,
   type ChatMessage,
-} from "@/lib/analysis-data"
+} from "@/lib/mocks/dashboard"
+import type { ChatRequest, ChatResponse } from "@/lib/types/contracts"
 
-function resolveAnswer(prompt: string): ChatMessage {
+function resolveAnswer(prompt: string): ChatResponse {
   const normalized = prompt.toLowerCase()
-  const match = CANNED_ANSWERS.find((c) => normalized.includes(c.match))
-  return match ? match.answer : DEFAULT_ANSWER
+  const match = CANNED_CHAT_RESPONSES.find((c) =>
+    normalized.includes(c.match),
+  )
+  return match ? match.response : DEFAULT_CHAT_RESPONSE
+}
+
+function toScopeLabel(scope: ChatRequest["scope"]): string {
+  return (
+    CHAT_SCOPE_OPTIONS.find((option) => option.value === scope)?.label ??
+    "All Sources"
+  )
+}
+
+function toAssistantMessage(response: ChatResponse): ChatMessage {
+  return {
+    role: "assistant",
+    content: response.answer,
+    followUps: response.followUpSuggestions,
+  }
 }
 
 export function ChatPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
-  const [scope, setScope] = useState("All Sources")
+  const [scope, setScope] = useState<ChatRequest["scope"]>("all")
   const [thinking, setThinking] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -42,12 +60,16 @@ export function ChatPanel() {
   function send(text: string) {
     const trimmed = text.trim()
     if (!trimmed || thinking) return
-    const userMsg: ChatMessage = { role: "user", content: trimmed, scope }
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: trimmed,
+      scope: toScopeLabel(scope),
+    }
     setMessages((prev) => [...prev, userMsg])
     setInput("")
     setThinking(true)
     setTimeout(() => {
-      setMessages((prev) => [...prev, resolveAnswer(trimmed)])
+      setMessages((prev) => [...prev, toAssistantMessage(resolveAnswer(trimmed))])
       setThinking(false)
     }, 750)
   }
@@ -138,14 +160,19 @@ export function ChatPanel() {
       <div className="border-t border-border bg-card px-4 py-3">
         <div className="mb-2 flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Answer using:</span>
-          <Select value={scope} onValueChange={setScope}>
+          <Select
+            value={scope}
+            onValueChange={(value) => {
+              if (value) setScope(value)
+            }}
+          >
             <SelectTrigger className="h-7 w-auto gap-1.5 border-border bg-secondary px-2.5 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {SCOPE_OPTIONS.map((opt) => (
-                <SelectItem key={opt} value={opt} className="text-xs">
-                  {opt}
+              {CHAT_SCOPE_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                  {opt.label}
                 </SelectItem>
               ))}
             </SelectContent>

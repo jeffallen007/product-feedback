@@ -4,7 +4,10 @@ import { useEffect, useState } from "react"
 import { Check, Loader2 } from "lucide-react"
 import { BrandMark } from "@/components/brand-mark"
 import { ArchitectureStrip } from "@/components/architecture-strip"
-import { PROCESSING_STEPS, ANALYSIS_META } from "@/lib/analysis-data"
+import {
+  MOCK_DASHBOARD_PAYLOAD,
+  PROCESSING_STEPS,
+} from "@/lib/mocks/dashboard"
 
 export function ProcessingState({ onComplete }: { onComplete: () => void }) {
   const [activeStep, setActiveStep] = useState(0)
@@ -43,9 +46,9 @@ export function ProcessingState({ onComplete }: { onComplete: () => void }) {
             Synthesizing your feedback set
           </h1>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted-foreground text-pretty">
-            Running {ANALYSIS_META.feedbackItems} feedback items from{" "}
-            {ANALYSIS_META.sourcesIncluded} sources through the analysis
-            pipeline.
+            Running {MOCK_DASHBOARD_PAYLOAD.analysisContext.feedbackItemCount}{" "}
+            feedback items from {MOCK_DASHBOARD_PAYLOAD.analysisContext.sourceCount}{" "}
+            sources through the analysis pipeline.
           </p>
         </div>
 

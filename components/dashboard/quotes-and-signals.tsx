@@ -1,9 +1,16 @@
 import { Card } from "@/components/ui/card"
-import { QUOTES, MODEL_SIGNALS } from "@/lib/analysis-data"
 import { SourceBadge } from "@/components/dashboard/source-badge"
-import { Quote } from "lucide-react"
+import { Quote, Search, Users2, Smartphone, MessageSquare } from "lucide-react"
+import type { DashboardPayload } from "@/lib/types/contracts"
+import type { SourceTag } from "@/lib/mocks/workflow"
 
-export function RepresentativeQuotes() {
+const MODEL_SIGNAL_ICONS = [Search, Users2, Smartphone, MessageSquare]
+
+export function RepresentativeQuotes({
+  quotes,
+}: {
+  quotes: DashboardPayload["representativeQuotes"]
+}) {
   return (
     <Card className="p-5">
       <h3 className="text-sm font-semibold text-foreground">
@@ -14,7 +21,7 @@ export function RepresentativeQuotes() {
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {QUOTES.map((q) => (
+        {quotes.map((q) => (
           <figure
             key={q.text}
             className="flex flex-col rounded-lg border border-border bg-secondary/40 p-4"
@@ -27,8 +34,8 @@ export function RepresentativeQuotes() {
               {q.text}
             </blockquote>
             <figcaption className="mt-3 flex flex-wrap items-center gap-2">
-              <SourceBadge source={q.source} />
-              <span className="text-xs text-muted-foreground">{q.theme}</span>
+              <SourceBadge source={q.sourceLabel as SourceTag} />
+              <span className="text-xs text-muted-foreground">{q.themeName}</span>
             </figcaption>
           </figure>
         ))}
@@ -37,7 +44,11 @@ export function RepresentativeQuotes() {
   )
 }
 
-export function ModelSignals() {
+export function ModelSignals({
+  signals,
+}: {
+  signals: DashboardPayload["modelSignals"]
+}) {
   return (
     <Card className="p-5">
       <h3 className="text-sm font-semibold text-foreground">
@@ -48,8 +59,8 @@ export function ModelSignals() {
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        {MODEL_SIGNALS.map((sig) => {
-          const Icon = sig.icon
+        {signals.map((sig, index) => {
+          const Icon = MODEL_SIGNAL_ICONS[index] ?? MessageSquare
           return (
             <div
               key={sig.label}

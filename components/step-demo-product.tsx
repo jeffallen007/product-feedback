@@ -2,7 +2,10 @@
 
 import { Button } from "@/components/ui/button"
 import { ArrowRight, ArrowLeft, Check } from "lucide-react"
-import { DEMO_PRODUCTS } from "@/lib/feedback-data"
+import {
+  DEMO_PRODUCTS,
+  type DemoProductId,
+} from "@/lib/mocks/workflow"
 
 export function StepDemoProduct({
   selected,
@@ -10,8 +13,8 @@ export function StepDemoProduct({
   onContinue,
   onBack,
 }: {
-  selected: string
-  onSelect: (id: string) => void
+  selected: DemoProductId
+  onSelect: (id: DemoProductId) => void
   onContinue: () => void
   onBack: () => void
 }) {

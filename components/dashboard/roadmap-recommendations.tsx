@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card"
-import { ROADMAP } from "@/lib/analysis-data"
+import type { DashboardPayload } from "@/lib/types/contracts"
 
 const PHASE_STYLES: Record<string, { dot: string; label: string }> = {
   Now: { dot: "bg-chart-5", label: "text-foreground" },
@@ -7,7 +7,11 @@ const PHASE_STYLES: Record<string, { dot: string; label: string }> = {
   Later: { dot: "bg-muted-foreground/50", label: "text-foreground" },
 }
 
-export function RoadmapRecommendations() {
+export function RoadmapRecommendations({
+  roadmap,
+}: {
+  roadmap: DashboardPayload["roadmapRecommendations"]
+}) {
   return (
     <Card className="p-5">
       <h3 className="text-sm font-semibold text-foreground">
@@ -18,7 +22,7 @@ export function RoadmapRecommendations() {
       </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
-        {ROADMAP.map((col) => (
+        {roadmap.map((col) => (
           <div
             key={col.phase}
             className="rounded-lg border border-border bg-secondary/40 p-4"
@@ -37,10 +41,10 @@ export function RoadmapRecommendations() {
             <ul className="mt-3 space-y-2">
               {col.items.map((item) => (
                 <li
-                  key={item}
+                  key={item.title}
                   className="rounded-md border border-border bg-card px-3 py-2 text-xs leading-relaxed text-foreground"
                 >
-                  {item}
+                  {item.title}
                 </li>
               ))}
             </ul>

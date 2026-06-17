@@ -28,13 +28,14 @@ import {
   ANALYSIS_GOALS,
   type ConfiguredSource,
   type ProductContext,
-} from "@/lib/feedback-data"
+} from "@/lib/mocks/workflow"
+import type { AnalysisGoal, SourceType } from "@/lib/types/contracts"
 
-const TYPE_ICON: Record<ConfiguredSource["type"], LucideIcon> = {
-  "Demo Dataset": Database,
-  "X Search": Search,
-  "Pasted Feedback": ClipboardList,
-  "CSV Upload": Upload,
+const TYPE_ICON: Record<SourceType, LucideIcon> = {
+  demo_dataset: Database,
+  x_search: Search,
+  pasted_text: ClipboardList,
+  csv_upload: Upload,
 }
 
 export function StepReview({
@@ -49,14 +50,14 @@ export function StepReview({
 }: {
   product: ProductContext
   sources: ConfiguredSource[]
-  goal: string
-  onGoalChange: (g: string) => void
+  goal: AnalysisGoal
+  onGoalChange: (g: AnalysisGoal) => void
   onRemove: (id: string) => void
   onAddSource: () => void
   onBack: () => void
   onSynthesize: () => void
 }) {
-  const totalItems = sources.reduce((sum, s) => sum + s.count, 0)
+  const totalItems = sources.reduce((sum, s) => sum + s.itemCount, 0)
 
   return (
     <div>
@@ -103,7 +104,7 @@ export function StepReview({
             </div>
             <div className="space-y-3">
               {sources.map((source) => {
-                const Icon = TYPE_ICON[source.type]
+                const Icon = TYPE_ICON[source.sourceType]
                 return (
                   <Card
                     key={source.id}
@@ -115,17 +116,17 @@ export function StepReview({
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="truncate text-sm font-semibold text-foreground">
-                          {source.label}
+                          {source.sourceLabel}
                         </span>
                         <Badge
                           variant="secondary"
                           className="border border-border text-muted-foreground"
                         >
-                          {source.type}
+                          {source.sourceTag}
                         </Badge>
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {source.count} items
+                        {source.itemCount} items
                       </p>
                     </div>
                     <Badge className="gap-1 bg-success/12 text-success hover:bg-success/12">
@@ -136,7 +137,7 @@ export function StepReview({
                       variant="ghost"
                       size="icon"
                       onClick={() => onRemove(source.id)}
-                      aria-label={`Remove ${source.label}`}
+                      aria-label={`Remove ${source.sourceLabel}`}
                       className="shrink-0 text-muted-foreground hover:text-destructive"
                     >
                       <X className="size-4" aria-hidden="true" />
@@ -189,7 +190,12 @@ export function StepReview({
           >
             Analysis goal
           </label>
-          <Select value={goal} onValueChange={onGoalChange}>
+          <Select
+            value={goal}
+            onValueChange={(value) => {
+              if (value) onGoalChange(value as AnalysisGoal)
+            }}
+          >
             <SelectTrigger id="analysis-goal" className="mt-1.5 w-full">
               <SelectValue />
             </SelectTrigger>

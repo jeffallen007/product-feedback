@@ -3,7 +3,7 @@
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import type { ProductContext } from "@/lib/feedback-data"
+import type { ProductContext } from "@/lib/mocks/workflow"
 
 export function ProductContextForm({
   value,

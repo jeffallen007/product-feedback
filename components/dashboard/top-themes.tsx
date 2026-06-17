@@ -1,8 +1,12 @@
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { THEMES } from "@/lib/analysis-data"
+import type { DashboardPayload } from "@/lib/types/contracts"
 
-export function TopThemes() {
+export function TopThemes({
+  themes,
+}: {
+  themes: DashboardPayload["topThemes"]
+}) {
   return (
     <Card className="p-5">
       <h3 className="text-sm font-semibold text-foreground">Top Themes</h3>
@@ -11,9 +15,9 @@ export function TopThemes() {
       </p>
 
       <div className="mt-4 space-y-2.5">
-        {THEMES.map((theme) => (
+        {themes.map((theme) => (
           <div
-            key={theme.rank}
+            key={theme.id}
             className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-foreground/20"
           >
             <div className="flex items-start gap-3">
@@ -46,7 +50,7 @@ export function TopThemes() {
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>
                     <span className="text-muted-foreground/70">Sources:</span>{" "}
-                    {theme.sources}
+                    {theme.sourceCoverage}
                   </span>
                   <span>
                     <span className="text-muted-foreground/70">Sentiment:</span>{" "}

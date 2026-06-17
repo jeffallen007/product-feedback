@@ -1,9 +1,16 @@
 import { Card } from "@/components/ui/card"
-import { PAIN_POINTS } from "@/lib/analysis-data"
 import { SourceBadge } from "@/components/dashboard/source-badge"
-import { Quote, ArrowRight } from "lucide-react"
+import { Quote, ArrowRight, MessageSquare, Settings2, LayoutDashboard } from "lucide-react"
+import type { DashboardPayload } from "@/lib/types/contracts"
+import type { SourceTag } from "@/lib/mocks/workflow"
 
-export function PainPointCards() {
+const PAIN_POINT_ICONS = [MessageSquare, Settings2, LayoutDashboard]
+
+export function PainPointCards({
+  painPoints,
+}: {
+  painPoints: DashboardPayload["painPoints"]
+}) {
   return (
     <div>
       <div className="mb-3">
@@ -16,8 +23,9 @@ export function PainPointCards() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        {PAIN_POINTS.map((pp) => {
-          const Icon = pp.icon
+        {painPoints.map((pp, index) => {
+          const Icon = PAIN_POINT_ICONS[index] ?? MessageSquare
+          const quote = pp.representativeQuotes[0]
           return (
             <Card key={pp.title} className="flex flex-col p-5">
               <div className="flex items-center gap-2.5">
@@ -34,7 +42,7 @@ export function PainPointCards() {
                   <p className="font-medium text-muted-foreground/70">
                     What users are saying
                   </p>
-                  <p className="mt-0.5 text-foreground">{pp.saying}</p>
+                  <p className="mt-0.5 text-foreground">{pp.summary}</p>
                 </div>
                 <div>
                   <p className="font-medium text-muted-foreground/70">
@@ -50,10 +58,10 @@ export function PainPointCards() {
                   aria-hidden="true"
                 />
                 <blockquote className="mt-1 text-xs italic leading-relaxed text-foreground">
-                  {pp.quote}
+                  {quote?.text}
                 </blockquote>
                 <figcaption className="mt-2">
-                  <SourceBadge source={pp.source} />
+                  <SourceBadge source={quote?.sourceLabel as SourceTag} />
                 </figcaption>
               </figure>
 
@@ -63,7 +71,7 @@ export function PainPointCards() {
                     className="mt-0.5 size-3.5 shrink-0"
                     aria-hidden="true"
                   />
-                  {pp.action}
+                  {pp.recommendedAction}
                 </p>
               </div>
             </Card>

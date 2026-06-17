@@ -18,12 +18,13 @@ import {
 } from "@/components/dashboard/quotes-and-signals"
 import { ChatPanel } from "@/components/dashboard/chat-panel"
 import {
-  ANALYSIS_META,
-  KPIS,
-  EXECUTIVE_SUMMARY,
-  SOURCE_TABS,
+  DASHBOARD_ALERTS,
+  DASHBOARD_SOURCE_FILTER_TO_TYPE,
+  DASHBOARD_SOURCE_TABS,
+  MOCK_DASHBOARD_PAYLOAD,
   type AnalysisSourceKey,
-} from "@/lib/analysis-data"
+} from "@/lib/mocks/dashboard"
+import type { SourceTag } from "@/lib/mocks/workflow"
 import {
   Plus,
   Sparkles,
@@ -37,18 +38,40 @@ import {
   AlertTriangle,
 } from "lucide-react"
 
-const CONTEXT_ITEMS = [
-  { icon: Target, label: "Analysis Target", value: ANALYSIS_META.productName },
-  { icon: Layers, label: "Sources Included", value: "3" },
-  { icon: ListChecks, label: "Feedback Items", value: "592" },
-  { icon: Clock, label: "Last Run", value: ANALYSIS_META.lastRun },
-]
-
 export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
   const [activeSource, setActiveSource] = useState<AnalysisSourceKey>("all")
   const [chatOpen, setChatOpen] = useState(false)
+  const dashboard = MOCK_DASHBOARD_PAYLOAD
+  const sourceTags = dashboard.sourceMix.map((source) => source.label as SourceTag)
+  const contextItems = [
+    {
+      icon: Target,
+      label: "Analysis Target",
+      value: dashboard.analysisContext.productName,
+    },
+    {
+      icon: Layers,
+      label: "Sources Included",
+      value: String(dashboard.analysisContext.sourceCount),
+    },
+    {
+      icon: ListChecks,
+      label: "Feedback Items",
+      value: String(dashboard.analysisContext.feedbackItemCount),
+    },
+    {
+      icon: Clock,
+      label: "Last Run",
+      value: dashboard.analysisContext.lastRunAt,
+    },
+  ]
 
-  const noData = activeSource === "csv"
+  const noData =
+    activeSource !== "all" &&
+    !dashboard.sourceMix.some(
+      (source) =>
+        source.sourceType === DASHBOARD_SOURCE_FILTER_TO_TYPE[activeSource],
+    )
 
   return (
     <div className="min-h-svh bg-background">
@@ -69,18 +92,18 @@ export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
           {/* Page title + badges */}
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground text-balance">
-              {ANALYSIS_META.productName} Feedback Analysis
+              {dashboard.analysisContext.productName} Feedback Analysis
             </h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              {ANALYSIS_META.productDescription}
+              {dashboard.analysisContext.productDescription}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <SourceBadge source="Demo Dataset" />
-              <SourceBadge source="X Search" />
-              <SourceBadge source="Pasted Feedback" />
+              {sourceTags.map((source) => (
+                <SourceBadge key={source} source={source} />
+              ))}
               <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/25 bg-accent/40 px-2 py-0.5 text-xs font-medium text-primary">
                 <Sparkles className="size-3" aria-hidden="true" />
-                {ANALYSIS_META.goal}
+                {dashboard.analysisContext.goal}
               </span>
             </div>
           </div>
@@ -88,7 +111,7 @@ export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
           {/* Analysis Context panel */}
           <Card className="mb-6 p-5">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {CONTEXT_ITEMS.map((item) => {
+              {contextItems.map((item) => {
                 const Icon = item.icon
                 return (
                   <div key={item.label} className="flex items-center gap-3">
@@ -116,14 +139,14 @@ export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
                 <span className="text-muted-foreground/70">
                   Processing Method:
                 </span>{" "}
-                {ANALYSIS_META.processingMethod}
+                {dashboard.analysisContext.processingMethod}
               </p>
             </div>
           </Card>
 
           {/* KPI cards */}
           <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
-            {KPIS.map((kpi) => (
+            {dashboard.kpis.map((kpi) => (
               <Card key={kpi.label} className="p-4">
                 <p className="text-2xl font-semibold tabular-nums text-foreground">
                   {kpi.value}
@@ -137,7 +160,10 @@ export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
 
           {/* Source mix */}
           <div className="mb-6">
-            <SourceMix />
+            <SourceMix
+              items={dashboard.sourceMix}
+              totalFeedbackItems={dashboard.analysisContext.feedbackItemCount}
+            />
           </div>
 
           {/* Source filter tabs */}
@@ -150,7 +176,7 @@ export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
               onValueChange={(v) => setActiveSource(v as AnalysisSourceKey)}
             >
               <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-secondary/60">
-                {SOURCE_TABS.map((tab) => (
+                {DASHBOARD_SOURCE_TABS.map((tab) => (
                   <TabsTrigger
                     key={tab.key}
                     value={tab.key}
@@ -196,9 +222,8 @@ export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
                     aria-hidden="true"
                   />
                   <p className="text-xs leading-relaxed text-foreground">
-                    <span className="font-semibold">Heads up:</span> the X
-                    Search source was recently rate limited. Results reflect the
-                    last successful pull of 86 posts.
+                    <span className="font-semibold">Heads up:</span>{" "}
+                    {DASHBOARD_ALERTS.xRateLimited}
                   </p>
                 </Card>
               )}
@@ -215,17 +240,21 @@ export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
                   </h3>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-foreground text-pretty">
-                  {EXECUTIVE_SUMMARY}
+                  {dashboard.executiveSummary}
                 </p>
               </Card>
 
-              <SentimentOverview />
-              <TopThemes />
-              <PainPointCards />
-              <FeatureRequests />
-              <RoadmapRecommendations />
-              <RepresentativeQuotes />
-              <ModelSignals />
+              <SentimentOverview
+                sentimentBreakdown={dashboard.sentimentBreakdown}
+              />
+              <TopThemes themes={dashboard.topThemes} />
+              <PainPointCards painPoints={dashboard.painPoints} />
+              <FeatureRequests featureRequests={dashboard.featureRequests} />
+              <RoadmapRecommendations
+                roadmap={dashboard.roadmapRecommendations}
+              />
+              <RepresentativeQuotes quotes={dashboard.representativeQuotes} />
+              <ModelSignals signals={dashboard.modelSignals} />
             </div>
           )}
         </div>

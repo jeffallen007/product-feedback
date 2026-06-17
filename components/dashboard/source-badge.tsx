@@ -1,4 +1,4 @@
-import type { SourceTag } from "@/lib/analysis-data"
+import type { SourceTag } from "@/lib/mocks/workflow"
 import { Database, Search, ClipboardList, Upload } from "lucide-react"
 
 const STYLES: Record<SourceTag, string> = {

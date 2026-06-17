@@ -6,9 +6,9 @@ import { ArrowRight, ArrowLeft } from "lucide-react"
 import { ProductContextForm } from "@/components/product-context-form"
 import {
   SOURCE_DEFINITIONS,
-  type SourceId,
   type ProductContext,
-} from "@/lib/feedback-data"
+  type WorkflowSourceId,
+} from "@/lib/mocks/workflow"
 
 export function StepSources({
   product,
@@ -20,8 +20,8 @@ export function StepSources({
 }: {
   product: ProductContext
   onProductChange: (next: ProductContext) => void
-  selected: SourceId[]
-  onToggle: (id: SourceId) => void
+  selected: WorkflowSourceId[]
+  onToggle: (id: WorkflowSourceId) => void
   onContinue: () => void
   onBack: () => void
 }) {

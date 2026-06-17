@@ -16,18 +16,28 @@ import {
   YAxis,
   LabelList,
 } from "recharts"
-import {
-  SENTIMENT_OVERALL,
-  SENTIMENT_BY_SOURCE,
-} from "@/lib/analysis-data"
+import type { DashboardPayload } from "@/lib/types/contracts"
 
 const SENTIMENT_COLORS: Record<string, string> = {
-  positive: "var(--color-chart-3)",
-  neutral: "var(--color-chart-4)",
-  negative: "var(--color-chart-5)",
+  Positive: "var(--color-chart-3)",
+  Neutral: "var(--color-chart-4)",
+  Negative: "var(--color-chart-5)",
 }
 
-export function SentimentOverview() {
+export function SentimentOverview({
+  sentimentBreakdown,
+}: {
+  sentimentBreakdown: DashboardPayload["sentimentBreakdown"]
+}) {
+  const overall = sentimentBreakdown.overall.map((item) => ({
+    ...item,
+    key: item.label,
+  }))
+  const bySource = sentimentBreakdown.bySource.map((item) => ({
+    source: item.sourceLabel,
+    negative: item.negativePercent,
+  }))
+
   return (
     <Card className="p-5">
       <h3 className="text-sm font-semibold text-foreground">
@@ -52,14 +62,14 @@ export function SentimentOverview() {
             <PieChart>
               <ChartTooltip content={<ChartTooltipContent hideLabel />} />
               <Pie
-                data={SENTIMENT_OVERALL}
+                data={overall}
                 dataKey="value"
-                nameKey="name"
+                nameKey="label"
                 innerRadius={50}
                 outerRadius={75}
                 strokeWidth={2}
               >
-                {SENTIMENT_OVERALL.map((entry) => (
+                {overall.map((entry) => (
                   <Cell
                     key={entry.key}
                     fill={SENTIMENT_COLORS[entry.key]}
@@ -69,14 +79,14 @@ export function SentimentOverview() {
             </PieChart>
           </ChartContainer>
           <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
-            {SENTIMENT_OVERALL.map((s) => (
+            {overall.map((s) => (
               <div key={s.key} className="flex items-center gap-1.5">
                 <span
                   className="size-2.5 rounded-sm"
                   style={{ backgroundColor: SENTIMENT_COLORS[s.key] }}
                 />
                 <span className="text-xs text-muted-foreground">
-                  {s.name} {s.value}%
+                  {s.label} {s.value}%
                 </span>
               </div>
             ))}
@@ -95,7 +105,7 @@ export function SentimentOverview() {
             className="h-[180px] w-full"
           >
             <BarChart
-              data={SENTIMENT_BY_SOURCE}
+              data={bySource}
               layout="vertical"
               margin={{ left: 0, right: 24, top: 4, bottom: 4 }}
             >
@@ -118,7 +128,7 @@ export function SentimentOverview() {
                 <LabelList
                   dataKey="negative"
                   position="right"
-                  formatter={(v: number) => `${v}%`}
+                  formatter={(value) => `${value}%`}
                   className="fill-muted-foreground text-[11px]"
                 />
               </Bar>

@@ -1,8 +1,12 @@
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { FEATURE_REQUESTS } from "@/lib/analysis-data"
+import type { DashboardPayload } from "@/lib/types/contracts"
 
-export function FeatureRequests() {
+export function FeatureRequests({
+  featureRequests,
+}: {
+  featureRequests: DashboardPayload["featureRequests"]
+}) {
   return (
     <Card className="p-5">
       <h3 className="text-sm font-semibold text-foreground">
@@ -31,7 +35,7 @@ export function FeatureRequests() {
             </tr>
           </thead>
           <tbody>
-            {FEATURE_REQUESTS.map((fr) => (
+            {featureRequests.map((fr) => (
               <tr
                 key={fr.request}
                 className="border-b border-border/60 last:border-0"
@@ -39,8 +43,10 @@ export function FeatureRequests() {
                 <td className="py-3 pr-4 font-medium text-foreground">
                   {fr.request}
                 </td>
-                <td className="py-3 pr-4 text-muted-foreground">{fr.need}</td>
-                <td className="py-3 pr-4 text-muted-foreground">{fr.signal}</td>
+                <td className="py-3 pr-4 text-muted-foreground">{fr.userNeed}</td>
+                <td className="py-3 pr-4 text-muted-foreground">
+                  {fr.supportingEvidence}
+                </td>
                 <td className="py-3">
                   <Badge
                     className={

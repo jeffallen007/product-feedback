@@ -9,9 +9,9 @@ import { ProductContextForm } from "@/components/product-context-form"
 import { ArrowRight, ArrowLeft, Upload } from "lucide-react"
 import {
   SEARCH_CHIPS,
-  type SourceId,
   type ProductContext,
-} from "@/lib/feedback-data"
+  type WorkflowSourceId,
+} from "@/lib/mocks/workflow"
 
 function PanelHeader({
   title,
@@ -43,7 +43,7 @@ export function StepConfigure({
 }: {
   product: ProductContext
   onProductChange: (next: ProductContext) => void
-  selected: SourceId[]
+  selected: WorkflowSourceId[]
   searchQuery: string
   onSearchQueryChange: (q: string) => void
   pasteValue: string
