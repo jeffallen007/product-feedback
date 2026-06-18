@@ -43,8 +43,33 @@ class FeedbackSetResponse(BaseModel):
     updated_at: datetime
 
 
+class DataSourceResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    id: str
+    feedback_set_id: str
+    source_type: str
+    source_label: str
+    item_count: int
+    status: str
+    metadata: dict[str, object]
+    created_at: datetime
+
+
 class CreateFeedbackSetResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
 
     analysis_target: AnalysisTargetResponse
     feedback_set: FeedbackSetResponse
+
+
+class AddDemoSourceRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    demo_product_id: str = Field(min_length=1)
+
+
+class AddDemoSourceResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    source: DataSourceResponse

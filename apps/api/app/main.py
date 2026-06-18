@@ -4,7 +4,12 @@ from fastapi.responses import JSONResponse
 from app.api.feedback_sets import router as feedback_sets_router
 from app.api.health import router as health_router
 from app.config import get_settings
-from app.errors import MissingSupabaseConfigError, SupabaseInsertError
+from app.errors import (
+    FeedbackSetNotFoundError,
+    InvalidDemoProductError,
+    MissingSupabaseConfigError,
+    SupabaseInsertError,
+)
 
 
 def handle_missing_supabase_config(
@@ -27,6 +32,26 @@ def handle_supabase_insert_error(
     )
 
 
+def handle_invalid_demo_product(
+    _request: Request,
+    exc: InvalidDemoProductError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={"detail": str(exc)},
+    )
+
+
+def handle_feedback_set_not_found(
+    _request: Request,
+    exc: FeedbackSetNotFoundError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={"detail": str(exc)},
+    )
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -42,6 +67,14 @@ def create_app() -> FastAPI:
     app.add_exception_handler(
         SupabaseInsertError,
         handle_supabase_insert_error,
+    )
+    app.add_exception_handler(
+        InvalidDemoProductError,
+        handle_invalid_demo_product,
+    )
+    app.add_exception_handler(
+        FeedbackSetNotFoundError,
+        handle_feedback_set_not_found,
     )
     app.include_router(health_router)
     app.include_router(feedback_sets_router)

@@ -4,3 +4,11 @@ class MissingSupabaseConfigError(RuntimeError):
 
 class SupabaseInsertError(RuntimeError):
     """Raised when a Supabase insert request fails."""
+
+
+class InvalidDemoProductError(ValueError):
+    """Raised when a requested demo product does not exist."""
+
+
+class FeedbackSetNotFoundError(LookupError):
+    """Raised when a feedback set does not exist."""
