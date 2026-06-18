@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react"
-import { ARCHITECTURE_STEPS } from "@/lib/mocks/workflow"
+import { ARCHITECTURE_STEPS } from "@/lib/config/workflow"
 
 export function ArchitectureStrip() {
   return (

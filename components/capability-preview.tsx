@@ -8,7 +8,7 @@ import {
   MessageSquare,
   type LucideIcon,
 } from "lucide-react"
-import { CAPABILITIES } from "@/lib/mocks/workflow"
+import { CAPABILITIES } from "@/lib/config/workflow"
 
 const CAPABILITY_ICONS: Record<(typeof CAPABILITIES)[number], LucideIcon> = {
   "Top pain points": AlertTriangle,
