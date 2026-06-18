@@ -20,6 +20,14 @@ import {
   type WorkflowSourceId,
 } from "@/lib/mocks/workflow"
 import type { AnalysisGoal } from "@/lib/types/contracts"
+import {
+  addCsvSource,
+  addDemoSource,
+  addPastedSource,
+  addXSource,
+  createFeedbackSet,
+  synthesizeFeedbackSet,
+} from "@/lib/services/analysis-service"
 
 type Path = "demo" | "custom"
 type Screen =
@@ -56,6 +64,13 @@ export default function Page() {
     EMPTY_PRODUCT_CONTEXT,
   )
   const [reviewSources, setReviewSources] = useState<ConfiguredSource[]>([])
+  const [analysisRunId, setAnalysisRunId] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const [processingSummary, setProcessingSummary] = useState({
+    feedbackItemCount: 592,
+    sourceCount: 3,
+  })
 
   function toggleSource(id: WorkflowSourceId) {
     setSelected((prev) =>
@@ -92,6 +107,7 @@ export default function Page() {
         sourceLabel: `${dp?.label ?? "Productivity Tool"} Demo Dataset`,
         itemCount: dp?.count ?? 482,
         status: "Ready",
+        mockConfig: { demoProductId: demoProduct },
       },
     ])
     setGoal("Full Product Feedback Synthesis")
@@ -132,6 +148,9 @@ export default function Page() {
         sourceLabel: `X Search: "${searchQuery || "Monday.com notifications"}"`,
         itemCount: 86,
         status: "Ready",
+        mockConfig: {
+          xQuery: searchQuery || "Monday.com notifications",
+        },
       })
     }
     setReviewSources(result)
@@ -156,6 +175,82 @@ export default function Page() {
     setProduct(EMPTY_PRODUCT_CONTEXT)
     setSelected(["csv"])
     setReviewSources([])
+    setAnalysisRunId(null)
+    setSubmissionError(null)
+  }
+
+  async function handleSynthesize() {
+    setSubmissionError(null)
+    setIsSubmitting(true)
+
+    try {
+      const { feedbackSet } = await createFeedbackSet({
+        analysisTarget: {
+          name: reviewProduct.name,
+          description: reviewProduct.description,
+        },
+        analysisGoal: goal,
+      })
+
+      for (const source of reviewSources) {
+        if (source.sourceType === "demo_dataset") {
+          await addDemoSource({
+            feedbackSetId: feedbackSet.id,
+            demoProductId: source.mockConfig?.demoProductId ?? demoProduct,
+          })
+          continue
+        }
+
+        if (source.sourceType === "csv_upload") {
+          await addCsvSource({
+            feedbackSetId: feedbackSet.id,
+            sourceLabel: source.sourceLabel,
+            itemCount: source.itemCount,
+          })
+          continue
+        }
+
+        if (source.sourceType === "pasted_text") {
+          await addPastedSource({
+            feedbackSetId: feedbackSet.id,
+            sourceLabel: source.sourceLabel,
+            pastedText: pasteValue,
+            itemCount: source.itemCount,
+          })
+          continue
+        }
+
+        await addXSource({
+          feedbackSetId: feedbackSet.id,
+          sourceLabel: source.sourceLabel,
+          query:
+            source.mockConfig?.xQuery ??
+            searchQuery ??
+            "Monday.com notifications",
+          itemCount: source.itemCount,
+        })
+      }
+
+      const analysisRun = await synthesizeFeedbackSet({
+        feedbackSetId: feedbackSet.id,
+      })
+
+      setAnalysisRunId(analysisRun.id)
+      setProcessingSummary({
+        feedbackItemCount:
+          Number(analysisRun.metadata.feedbackItemCount) || 592,
+        sourceCount: Number(analysisRun.metadata.sourceCount) || 3,
+      })
+      setScreen("processing")
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while creating the mock analysis.",
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const steps = path === "demo" ? DEMO_STEPS : CUSTOM_STEPS
@@ -171,11 +266,22 @@ export default function Page() {
             : 3
 
   if (screen === "processing") {
-    return <ProcessingState onComplete={() => setScreen("dashboard")} />
+    return (
+      <ProcessingState
+        feedbackItemCount={processingSummary.feedbackItemCount}
+        sourceCount={processingSummary.sourceCount}
+        onComplete={() => setScreen("dashboard")}
+      />
+    )
   }
 
-  if (screen === "dashboard") {
-    return <Dashboard onNewAnalysis={startNewAnalysis} />
+  if (screen === "dashboard" && analysisRunId) {
+    return (
+      <Dashboard
+        analysisRunId={analysisRunId}
+        onNewAnalysis={startNewAnalysis}
+      />
+    )
   }
 
   return (
@@ -246,7 +352,9 @@ export default function Page() {
               onBack={() =>
                 setScreen(path === "demo" ? "demo-product" : "configure")
               }
-              onSynthesize={() => setScreen("processing")}
+              onSynthesize={handleSynthesize}
+              isSubmitting={isSubmitting}
+              errorMessage={submissionError}
             />
           )}
         </div>

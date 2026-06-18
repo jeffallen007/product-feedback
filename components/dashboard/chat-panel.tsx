@@ -12,21 +12,12 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sparkles, Send, MessageSquarePlus } from "lucide-react"
 import {
-  CANNED_CHAT_RESPONSES,
   CHAT_SCOPE_OPTIONS,
-  DEFAULT_CHAT_RESPONSE,
   SUGGESTED_PROMPTS,
   type ChatMessage,
 } from "@/lib/mocks/dashboard"
 import type { ChatRequest, ChatResponse } from "@/lib/types/contracts"
-
-function resolveAnswer(prompt: string): ChatResponse {
-  const normalized = prompt.toLowerCase()
-  const match = CANNED_CHAT_RESPONSES.find((c) =>
-    normalized.includes(c.match),
-  )
-  return match ? match.response : DEFAULT_CHAT_RESPONSE
-}
+import { askAnalysisQuestion } from "@/lib/services/analysis-service"
 
 function toScopeLabel(scope: ChatRequest["scope"]): string {
   return (
@@ -43,11 +34,12 @@ function toAssistantMessage(response: ChatResponse): ChatMessage {
   }
 }
 
-export function ChatPanel() {
+export function ChatPanel({ analysisRunId }: { analysisRunId: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [scope, setScope] = useState<ChatRequest["scope"]>("all")
   const [thinking, setThinking] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -57,9 +49,10 @@ export function ChatPanel() {
     })
   }, [messages, thinking])
 
-  function send(text: string) {
+  async function send(text: string) {
     const trimmed = text.trim()
     if (!trimmed || thinking) return
+    setErrorMessage(null)
     const userMsg: ChatMessage = {
       role: "user",
       content: trimmed,
@@ -68,10 +61,22 @@ export function ChatPanel() {
     setMessages((prev) => [...prev, userMsg])
     setInput("")
     setThinking(true)
-    setTimeout(() => {
-      setMessages((prev) => [...prev, toAssistantMessage(resolveAnswer(trimmed))])
+    try {
+      const response = await askAnalysisQuestion({
+        analysisRunId,
+        question: trimmed,
+        scope,
+      })
+      setMessages((prev) => [...prev, toAssistantMessage(response)])
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to retrieve the mock response.",
+      )
+    } finally {
       setThinking(false)
-    }, 750)
+    }
   }
 
   const isEmpty = messages.length === 0
@@ -136,6 +141,11 @@ export function ChatPanel() {
           {/* Suggested prompts */}
           {(isEmpty || !thinking) && (
             <div className="mt-5">
+              {errorMessage && (
+                <p className="mb-2 text-xs leading-relaxed text-destructive">
+                  {errorMessage}
+                </p>
+              )}
               <p className="mb-2 text-xs font-medium text-muted-foreground">
                 {isEmpty ? "Suggested prompts" : "Try another"}
               </p>

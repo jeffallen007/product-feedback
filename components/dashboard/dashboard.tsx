@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { BrandMark } from "@/components/brand-mark"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -21,10 +21,11 @@ import {
   DASHBOARD_ALERTS,
   DASHBOARD_SOURCE_FILTER_TO_TYPE,
   DASHBOARD_SOURCE_TABS,
-  MOCK_DASHBOARD_PAYLOAD,
   type AnalysisSourceKey,
 } from "@/lib/mocks/dashboard"
 import type { SourceTag } from "@/lib/mocks/workflow"
+import type { DashboardPayload } from "@/lib/types/contracts"
+import { getAnalysisRun } from "@/lib/services/analysis-service"
 import {
   Plus,
   Sparkles,
@@ -36,12 +37,109 @@ import {
   Clock,
   Cpu,
   AlertTriangle,
+  Loader2,
 } from "lucide-react"
 
-export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
+export function Dashboard({
+  analysisRunId,
+  onNewAnalysis,
+}: {
+  analysisRunId: string
+  onNewAnalysis: () => void
+}) {
   const [activeSource, setActiveSource] = useState<AnalysisSourceKey>("all")
   const [chatOpen, setChatOpen] = useState(false)
-  const dashboard = MOCK_DASHBOARD_PAYLOAD
+  const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadAnalysisRun() {
+      setIsLoading(true)
+      setErrorMessage(null)
+
+      try {
+        const result = await getAnalysisRun(analysisRunId)
+        if (!cancelled) {
+          setDashboard(result.dashboard)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Unable to load the mock analysis run.",
+          )
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadAnalysisRun()
+
+    return () => {
+      cancelled = true
+    }
+  }, [analysisRunId])
+
+  if (errorMessage) {
+    return (
+      <div className="min-h-svh bg-background">
+        <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-6 py-3">
+            <BrandMark />
+            <Button variant="outline" size="sm" onClick={onNewAnalysis}>
+              <Plus className="size-4" aria-hidden="true" />
+              New Analysis
+            </Button>
+          </div>
+        </header>
+        <div className="mx-auto max-w-3xl px-6 py-16">
+          <Card className="p-10 text-center">
+            <p className="text-sm font-medium text-foreground">
+              Unable to load the analysis dashboard
+            </p>
+            <p className="mt-1 text-xs text-destructive">{errorMessage}</p>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
+  if (isLoading || !dashboard) {
+    return (
+      <div className="min-h-svh bg-background">
+        <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-6 py-3">
+            <BrandMark />
+            <Button variant="outline" size="sm" onClick={onNewAnalysis}>
+              <Plus className="size-4" aria-hidden="true" />
+              New Analysis
+            </Button>
+          </div>
+        </header>
+        <div className="mx-auto max-w-3xl px-6 py-16">
+          <Card className="flex flex-col items-center gap-3 p-10 text-center">
+            <Loader2 className="size-6 animate-spin text-primary" aria-hidden="true" />
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Loading analysis dashboard
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Preparing the mock analysis payload.
+              </p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   const sourceTags = dashboard.sourceMix.map((source) => source.label as SourceTag)
   const contextItems = [
     {
@@ -261,7 +359,7 @@ export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
 
         {/* Desktop chat panel */}
         <aside className="sticky top-[57px] hidden h-[calc(100svh-57px)] w-[380px] shrink-0 border-l border-border bg-card lg:block">
-          <ChatPanel />
+          <ChatPanel analysisRunId={analysisRunId} />
         </aside>
       </div>
 
@@ -295,7 +393,7 @@ export function Dashboard({ onNewAnalysis }: { onNewAnalysis: () => void }) {
               </Button>
             </div>
             <div className="min-h-0 flex-1">
-              <ChatPanel />
+              <ChatPanel analysisRunId={analysisRunId} />
             </div>
           </div>
         </div>

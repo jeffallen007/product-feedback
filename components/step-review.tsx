@@ -47,6 +47,8 @@ export function StepReview({
   onAddSource,
   onBack,
   onSynthesize,
+  isSubmitting = false,
+  errorMessage = null,
 }: {
   product: ProductContext
   sources: ConfiguredSource[]
@@ -56,6 +58,8 @@ export function StepReview({
   onAddSource: () => void
   onBack: () => void
   onSynthesize: () => void
+  isSubmitting?: boolean
+  errorMessage?: string | null
 }) {
   const totalItems = sources.reduce((sum, s) => sum + s.itemCount, 0)
 
@@ -211,15 +215,20 @@ export function StepReview({
           <Button
             onClick={onSynthesize}
             className="mt-5 w-full"
-            disabled={sources.length === 0}
+            disabled={sources.length === 0 || isSubmitting}
           >
             <Sparkles className="size-4" aria-hidden="true" />
-            Synthesize Feedback Set
+            {isSubmitting ? "Preparing Feedback Set..." : "Synthesize Feedback Set"}
           </Button>
           <Button variant="ghost" onClick={onBack} className="mt-2 w-full">
             <ArrowLeft className="size-4" aria-hidden="true" />
             Back to Sources
           </Button>
+          {errorMessage && (
+            <p className="mt-3 text-xs leading-relaxed text-destructive">
+              {errorMessage}
+            </p>
+          )}
 
           <PrivacyNotice className="mt-4">
             By synthesizing this feedback set, you acknowledge that uploaded or

@@ -45,6 +45,10 @@ export interface ConfiguredSource
   extends Pick<DataSource, "id" | "sourceType" | "sourceLabel" | "itemCount"> {
   sourceTag: SourceTag
   status: ReviewSourceStatus
+  mockConfig?: {
+    demoProductId?: DemoProductId
+    xQuery?: string
+  }
 }
 
 export const EMPTY_PRODUCT_CONTEXT: ProductContext = {
