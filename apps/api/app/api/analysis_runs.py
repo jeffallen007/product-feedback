@@ -6,6 +6,7 @@ from app.schemas.analysis_runs import (
     SynthesizeFeedbackSetRequest,
     SynthesizeFeedbackSetResponse,
 )
+from app.schemas.chat import AskAnalysisQuestionRequest, AskAnalysisQuestionResponse
 from app.services.analysis_runs import AnalysisRunService
 
 router = APIRouter(tags=["analysis-runs"])
@@ -33,3 +34,16 @@ def get_analysis_run(
     service: AnalysisRunService = Depends(get_analysis_run_service),
 ) -> GetAnalysisRunResponse:
     return service.get_analysis_run(analysis_run_id)
+
+
+@router.post(
+    "/analysis-runs/{analysis_run_id}/chat",
+    response_model=AskAnalysisQuestionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def ask_analysis_question(
+    analysis_run_id: str,
+    request: AskAnalysisQuestionRequest,
+    service: AnalysisRunService = Depends(get_analysis_run_service),
+) -> AskAnalysisQuestionResponse:
+    return service.ask_placeholder_question(analysis_run_id, request)

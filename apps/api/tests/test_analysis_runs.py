@@ -11,6 +11,7 @@ from app.errors import (
 )
 from app.main import app
 from app.schemas.analysis_runs import SynthesizeFeedbackSetRequest
+from app.schemas.chat import AskAnalysisQuestionRequest
 from app.services.analysis_runs import AnalysisRunService
 
 
@@ -22,12 +23,14 @@ class FakeAnalysisSupabaseClient:
         total_feedback_count: int = 12,
         dashboard_summary: dict[str, object] | None = None,
         fail_dashboard_insert: bool = False,
+        fail_chat_insert: bool = False,
     ) -> None:
         self.calls: list[tuple[str, dict[str, object] | dict[str, str]]] = []
         self.has_sources = has_sources
         self.total_feedback_count = total_feedback_count
         self.dashboard_summary = dashboard_summary
         self.fail_dashboard_insert = fail_dashboard_insert
+        self.fail_chat_insert = fail_chat_insert
 
     def fetch_single_row(
         self,
@@ -101,11 +104,12 @@ class FakeAnalysisSupabaseClient:
                     "id": f"item_{index}",
                     "feedback_set_id": filters["feedback_set_id"],
                     "source_id": "source_789",
-                    "raw_text": f"Sample review {index}",
-                    "normalized_text": f"sample review {index}",
-                    "rating": 4 if index % 2 else 3,
+                    "raw_text": self._feedback_item_text(index),
+                    "normalized_text": self._feedback_item_normalized_text(index),
+                    "rating": self._feedback_item_rating(index),
                     "source_type": "demo_dataset",
                     "source_label": "Productivity Tool Demo Dataset",
+                    "metadata_json": self._feedback_item_metadata(index),
                 }
                 for index in range(1, self.total_feedback_count + 1)
             ]
@@ -134,7 +138,154 @@ class FakeAnalysisSupabaseClient:
                 "analysis_run_id": payload["analysis_run_id"],
                 "summary_payload": payload["summary_payload"],
             }
+        if table == "chat_messages":
+            if self.fail_chat_insert:
+                raise SupabaseInsertError("Supabase insert failed for table 'chat_messages'.")
+            message_number = len([call for call in self.calls if call[0] == "chat_messages"])
+            return {
+                "id": f"message_{message_number}",
+                "analysis_run_id": payload["analysis_run_id"],
+                "role": payload["role"],
+                "question": payload["question"],
+                "answer": payload["answer"],
+                "scope": payload["scope"],
+                "evidence_json": payload["evidence_json"],
+                "follow_up_suggestions": payload["follow_up_suggestions"],
+                "created_at": datetime(2026, 6, 18, 9, message_number, tzinfo=UTC).isoformat(),
+            }
         raise AssertionError(f"Unexpected insert table {table}")
+
+    @staticmethod
+    def _feedback_item_text(index: int) -> str:
+        if index == 1:
+            return "Notifications are too aggressive. I get pinged for minor status changes all day."
+        if index == 2:
+            return "Please give us quieter default notification settings for new team members."
+        if index == 3:
+            return "Comment mentions work well, but I'd like better control over who gets notified."
+        return f"Sample review {index}"
+
+    @staticmethod
+    def _feedback_item_normalized_text(index: int) -> str:
+        if index == 1:
+            return "Notification volume is too high for minor task updates."
+        if index == 2:
+            return "New users need quieter default notification settings."
+        if index == 3:
+            return "Mentions work, but notification targeting needs refinement."
+        return f"sample review {index}"
+
+    @staticmethod
+    def _feedback_item_rating(index: int) -> int:
+        if index in {1, 2}:
+            return 2
+        if index == 3:
+            return 3
+        return 4 if index % 2 else 3
+
+    @staticmethod
+    def _feedback_item_metadata(index: int) -> dict[str, str]:
+        if index in {1, 2, 3}:
+            return {"topic": "notifications"}
+        return {"topic": "general"}
+
+
+def make_dashboard_summary() -> dict[str, object]:
+    return {
+        "id": "summary_123",
+        "analysis_run_id": "run_123",
+        "summary_payload": {
+            "analysisContext": {
+                "analysisRunId": "run_123",
+                "productName": "Pulse Fitness",
+                "productDescription": "A mobile fitness coaching app for guided routines.",
+                "goal": "Full Product Feedback Synthesis",
+                "processingMethod": "Placeholder Backend Summary",
+                "sourceCount": 1,
+                "feedbackItemCount": 12,
+                "lastRunAt": "2026-06-18T09:00:00+00:00",
+            },
+            "sourceMix": [
+                {
+                    "sourceId": "source_789",
+                    "label": "Productivity Tool Demo Dataset",
+                    "sourceType": "demo_dataset",
+                    "count": 12,
+                    "unit": "items",
+                    "percent": 100,
+                }
+            ],
+            "kpis": [{"label": "Feedback items analyzed", "value": "12"}],
+            "executiveSummary": "Placeholder summary.",
+            "sentimentBreakdown": {
+                "overall": [
+                    {"label": "Positive", "value": 35},
+                    {"label": "Neutral", "value": 25},
+                    {"label": "Negative", "value": 40},
+                ],
+                "bySource": [
+                    {"sourceLabel": "Productivity Tool Demo Dataset", "negativePercent": 40}
+                ],
+            },
+            "classificationSummary": [{"category": "ux_issue", "count": 4, "percent": 33}],
+            "topThemes": [
+                {
+                    "id": "workflow_friction",
+                    "rank": 1,
+                    "name": "Notification overload",
+                    "description": "Users hit friction when managing alerts and noisy updates.",
+                    "count": 4,
+                    "percent": 33,
+                    "sentiment": "Mostly negative",
+                    "priority": "High",
+                    "sourceCoverage": "Demo Dataset",
+                }
+            ],
+            "painPoints": [
+                {
+                    "title": "Notification overload",
+                    "summary": "Users hit friction when managing alerts and noisy updates.",
+                    "evidenceCount": 4,
+                    "impact": "Too many low-signal alerts increase fatigue.",
+                    "recommendedAction": "Reduce planning friction.",
+                    "representativeQuotes": [
+                        {
+                            "text": "Planning repeats feel tedious.",
+                            "sourceLabel": "Productivity Tool Demo Dataset",
+                        }
+                    ],
+                }
+            ],
+            "featureRequests": [
+                {
+                    "request": "Add reusable plan templates.",
+                    "userNeed": "Reduce friction in the core workflow",
+                    "supportingEvidence": "Demo Dataset",
+                    "priority": "High",
+                }
+            ],
+            "roadmapRecommendations": [
+                {
+                    "phase": "Now",
+                    "items": [{"title": "Fix setup friction", "rationale": "Immediate improvement"}],
+                }
+            ],
+            "representativeQuotes": [
+                {
+                    "text": "Planning repeats feel tedious.",
+                    "sourceLabel": "Productivity Tool Demo Dataset",
+                    "themeName": "Notification overload",
+                    "category": "ux_issue",
+                }
+            ],
+            "modelSignals": [
+                {
+                    "label": "Placeholder confidence",
+                    "value": "Deterministic fixture-derived summary",
+                }
+            ],
+        },
+    }
 
 
 def test_create_placeholder_run_persists_analysis_run_and_dashboard_summary() -> None:
@@ -194,103 +345,7 @@ def test_create_placeholder_run_rejects_empty_feedback_set() -> None:
 
 
 def test_get_analysis_run_returns_dashboard_when_summary_exists() -> None:
-    client = FakeAnalysisSupabaseClient(
-        dashboard_summary={
-            "id": "summary_123",
-            "analysis_run_id": "run_123",
-            "summary_payload": {
-                "analysisContext": {
-                    "analysisRunId": "run_123",
-                    "productName": "Pulse Fitness",
-                    "productDescription": "A mobile fitness coaching app for guided routines.",
-                    "goal": "Full Product Feedback Synthesis",
-                    "processingMethod": "Placeholder Backend Summary",
-                    "sourceCount": 1,
-                    "feedbackItemCount": 12,
-                    "lastRunAt": "2026-06-18T09:00:00+00:00",
-                },
-                "sourceMix": [
-                    {
-                        "sourceId": "source_789",
-                        "label": "Productivity Tool Demo Dataset",
-                        "sourceType": "demo_dataset",
-                        "count": 12,
-                        "unit": "items",
-                        "percent": 100,
-                    }
-                ],
-                "kpis": [{"label": "Feedback items analyzed", "value": "12"}],
-                "executiveSummary": "Placeholder summary.",
-                "sentimentBreakdown": {
-                    "overall": [
-                        {"label": "Positive", "value": 35},
-                        {"label": "Neutral", "value": 25},
-                        {"label": "Negative", "value": 40},
-                    ],
-                    "bySource": [
-                        {"sourceLabel": "Productivity Tool Demo Dataset", "negativePercent": 40}
-                    ],
-                },
-                "classificationSummary": [{"category": "ux_issue", "count": 4, "percent": 33}],
-                "topThemes": [
-                    {
-                        "id": "workflow_friction",
-                        "rank": 1,
-                        "name": "Workflow friction",
-                        "description": "Users hit friction when managing daily planning flows.",
-                        "count": 4,
-                        "percent": 33,
-                        "sentiment": "Mostly negative",
-                        "priority": "High",
-                        "sourceCoverage": "Demo Dataset",
-                    }
-                ],
-                "painPoints": [
-                    {
-                        "title": "Workflow friction",
-                        "summary": "Users hit friction when managing daily planning flows.",
-                        "evidenceCount": 4,
-                        "impact": "Slows down repeated task planning.",
-                        "recommendedAction": "Reduce planning friction.",
-                            "representativeQuotes": [
-                                {
-                                    "text": "Planning repeats feel tedious.",
-                                    "sourceLabel": "Productivity Tool Demo Dataset",
-                                }
-                            ],
-                    }
-                ],
-                "featureRequests": [
-                    {
-                        "request": "Add reusable plan templates.",
-                        "userNeed": "Reduce friction in the core workflow",
-                        "supportingEvidence": "Demo Dataset",
-                        "priority": "High",
-                    }
-                ],
-                "roadmapRecommendations": [
-                    {
-                        "phase": "Now",
-                        "items": [{"title": "Fix setup friction", "rationale": "Immediate improvement"}],
-                    }
-                ],
-                "representativeQuotes": [
-                    {
-                        "text": "Planning repeats feel tedious.",
-                        "sourceLabel": "Productivity Tool Demo Dataset",
-                        "themeName": "Workflow friction",
-                        "category": "ux_issue",
-                    }
-                ],
-                "modelSignals": [
-                    {
-                        "label": "Placeholder confidence",
-                        "value": "Deterministic fixture-derived summary",
-                    }
-                ],
-            },
-        }
-    )
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
     service = AnalysisRunService(client)  # type: ignore[arg-type]
 
     response = service.get_analysis_run("run_123")
@@ -300,6 +355,92 @@ def test_get_analysis_run_returns_dashboard_when_summary_exists() -> None:
     assert response.dashboard.analysis_context.feedback_item_count == 12
     assert response.dashboard.executive_summary == "Placeholder summary."
     assert response.placeholder_message is None
+
+
+def test_ask_placeholder_question_persists_user_and_assistant_messages() -> None:
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.ask_placeholder_question(
+        "run_123",
+        AskAnalysisQuestionRequest(
+            question="Show evidence for notification overload",
+            scope="all",
+        ),
+    )
+
+    chat_inserts = [call for call in client.calls if call[0] == "chat_messages"]
+    assert len(chat_inserts) == 2
+    assert chat_inserts[0][1]["role"] == "user"
+    assert chat_inserts[1][1]["role"] == "assistant"
+    assert response.answer.startswith("Notification overload is a valid placeholder theme")
+    assert response.scope_used == "all"
+    assert len(response.evidence) == 3
+    assert response.evidence[0].source_label == "Productivity Tool Demo Dataset"
+    assert response.user_message.role == "user"
+    assert response.assistant_message.role == "assistant"
+    assert response.assistant_message.follow_up_suggestions == [
+        "Summarize notification issues by severity.",
+        "Draft a fix recommendation for notification defaults.",
+    ]
+
+
+def test_ask_placeholder_question_rejects_missing_run() -> None:
+    class MissingRunClient(FakeAnalysisSupabaseClient):
+        def fetch_single_row(self, table: str, *, filters: dict[str, str]) -> dict[str, object]:
+            if table == "analysis_runs":
+                raise SupabaseInsertError("Supabase query returned no rows for table 'analysis_runs'.")
+            return super().fetch_single_row(table, filters=filters)
+
+    service = AnalysisRunService(MissingRunClient())  # type: ignore[arg-type]
+
+    try:
+        service.ask_placeholder_question(
+            "run_missing",
+            AskAnalysisQuestionRequest(question="What should we prioritize first?"),
+        )
+    except AnalysisRunNotFoundError:
+        pass
+    else:
+        raise AssertionError("Expected AnalysisRunNotFoundError")
+
+
+def test_ask_placeholder_question_returns_deterministic_compare_answer() -> None:
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.ask_placeholder_question(
+        "run_123",
+        AskAnalysisQuestionRequest(
+            question="Compare X feedback to demo dataset",
+            scope="all",
+        ),
+    )
+
+    assert response.answer == "This analysis run only includes the demo dataset right now, so there is no persisted X feedback to compare against yet."
+    assert response.evidence == []
+    assert response.follow_up_suggestions == [
+        "Summarize the demo dataset on its own.",
+        "Show the highest-friction themes in the current run.",
+    ]
+
+
+def test_ask_placeholder_question_surfaces_chat_insert_failure() -> None:
+    client = FakeAnalysisSupabaseClient(
+        dashboard_summary=make_dashboard_summary(),
+        fail_chat_insert=True,
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    try:
+        service.ask_placeholder_question(
+            "run_123",
+            AskAnalysisQuestionRequest(question="Roadmap memo"),
+        )
+    except SupabaseInsertError as exc:
+        assert "chat_messages" in str(exc)
+    else:
+        raise AssertionError("Expected SupabaseInsertError")
 
 
 def test_get_analysis_run_returns_placeholder_when_summary_missing() -> None:
@@ -350,11 +491,18 @@ def test_analysis_run_routes_surface_errors() -> None:
         def get_analysis_run(self, _analysis_run_id):  # type: ignore[no-untyped-def]
             raise AnalysisRunNotFoundError("Analysis run 'run_missing' was not found.")
 
+        def ask_placeholder_question(self, _analysis_run_id, _request):  # type: ignore[no-untyped-def]
+            raise SupabaseInsertError("Supabase insert failed for table 'chat_messages'.")
+
     app.dependency_overrides[get_analysis_run_service] = lambda: FailingService()
     client = TestClient(app)
 
     create_response = client.post("/feedback-sets/set_456/synthesize", json={})
     fetch_response = client.get("/analysis-runs/run_missing")
+    chat_response = client.post(
+        "/analysis-runs/run_123/chat",
+        json={"question": "What should we prioritize first?", "scope": "all"},
+    )
 
     app.dependency_overrides.clear()
 
@@ -362,3 +510,5 @@ def test_analysis_run_routes_surface_errors() -> None:
     assert "analysis_runs" in create_response.json()["detail"]
     assert fetch_response.status_code == 404
     assert "run_missing" in fetch_response.json()["detail"]
+    assert chat_response.status_code == 502
+    assert "chat_messages" in chat_response.json()["detail"]
