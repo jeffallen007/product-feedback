@@ -10,3 +10,9 @@ node_modules/
 .env.*.local
 
 .vercel/
+
+# Python backend
+apps/api/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
