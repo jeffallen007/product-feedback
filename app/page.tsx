@@ -11,9 +11,7 @@ import { StepReview } from "@/components/step-review"
 import { ProcessingState } from "@/components/processing-state"
 import { Dashboard } from "@/components/dashboard/dashboard"
 import {
-  DEMO_PRODUCTS,
   EMPTY_PRODUCT_CONTEXT,
-  SOURCE_TAG_BY_TYPE,
   type ConfiguredSource,
   type DemoProductId,
   type ProductContext,
@@ -25,6 +23,8 @@ import {
   addDemoSource,
   addPastedSource,
   addXSource,
+  buildCustomReviewState,
+  buildDemoReviewState,
   createFeedbackSet,
   synthesizeFeedbackSet,
 } from "@/lib/services/analysis-service"
@@ -92,68 +92,24 @@ export default function Page() {
   }
 
   function reviewDemo() {
-    const dp = DEMO_PRODUCTS.find((p) => p.id === demoProduct)
-    setReviewProduct({
-      name: dp?.label ?? "Productivity Tool",
-      description:
-        dp?.description ??
-        "Tasks, notifications, and collaboration feedback from teams.",
+    const reviewState = buildDemoReviewState({
+      demoProductId: demoProduct,
     })
-    setReviewSources([
-      {
-        id: "demo-" + demoProduct,
-        sourceType: "demo_dataset",
-        sourceTag: "Demo Dataset",
-        sourceLabel: `${dp?.label ?? "Productivity Tool"} Demo Dataset`,
-        itemCount: dp?.count ?? 482,
-        status: "Ready",
-        mockConfig: { demoProductId: demoProduct },
-      },
-    ])
+    setReviewProduct(reviewState.product)
+    setReviewSources(reviewState.sources)
     setGoal("Full Product Feedback Synthesis")
     setScreen("review")
   }
 
   function reviewCustom() {
-    setReviewProduct(product)
-    // Preserve any demo dataset sources already in the set (enrichment flow).
-    const result: ConfiguredSource[] = reviewSources.filter(
-      (s) => s.sourceType === "demo_dataset",
-    )
-    if (selected.includes("csv")) {
-      result.push({
-        id: "csv-upload",
-        sourceType: "csv_upload",
-        sourceTag: SOURCE_TAG_BY_TYPE.csv_upload,
-        sourceLabel: "Uploaded CSV",
-        itemCount: 318,
-        status: "Ready",
-      })
-    }
-    if (selected.includes("paste")) {
-      result.push({
-        id: "pasted",
-        sourceType: "pasted_text",
-        sourceTag: SOURCE_TAG_BY_TYPE.pasted_text,
-        sourceLabel: "Pasted Reviews",
-        itemCount: 24,
-        status: "Ready",
-      })
-    }
-    if (selected.includes("search")) {
-      result.push({
-        id: "x-search",
-        sourceType: "x_search",
-        sourceTag: SOURCE_TAG_BY_TYPE.x_search,
-        sourceLabel: `X Search: "${searchQuery || "Monday.com notifications"}"`,
-        itemCount: 86,
-        status: "Ready",
-        mockConfig: {
-          xQuery: searchQuery || "Monday.com notifications",
-        },
-      })
-    }
-    setReviewSources(result)
+    const reviewState = buildCustomReviewState({
+      product,
+      selectedSourceIds: selected,
+      searchQuery,
+      existingSources: reviewSources,
+    })
+    setReviewProduct(reviewState.product)
+    setReviewSources(reviewState.sources)
     setScreen("review")
   }
 
@@ -235,11 +191,11 @@ export default function Page() {
         feedbackSetId: feedbackSet.id,
       })
 
-      setAnalysisRunId(analysisRun.id)
+      setAnalysisRunId(analysisRun.analysisRun.id)
       setProcessingSummary({
         feedbackItemCount:
-          Number(analysisRun.metadata.feedbackItemCount) || 592,
-        sourceCount: Number(analysisRun.metadata.sourceCount) || 3,
+          Number(analysisRun.analysisRun.metadata.feedbackItemCount) || 592,
+        sourceCount: Number(analysisRun.analysisRun.metadata.sourceCount) || 3,
       })
       setScreen("processing")
     } catch (error) {

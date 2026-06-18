@@ -6,64 +6,37 @@ import {
 import {
   DEMO_PRODUCTS,
   SOURCE_TAG_BY_TYPE,
-  type DemoProductId,
+  type ConfiguredSource,
 } from "@/lib/mocks/workflow"
 import type {
-  AnalysisGoal,
+  AddCsvSourceRequest,
+  AddCsvSourceResponse,
+  AddDemoSourceRequest,
+  AddDemoSourceResponse,
+  AddPastedSourceRequest,
+  AddPastedSourceResponse,
+  AddXSourceRequest,
+  AddXSourceResponse,
+  AskAnalysisQuestionRequest,
+  AskAnalysisQuestionResponse,
+  BuildCustomReviewStateRequest,
+  BuildCustomReviewStateResponse,
+  BuildDemoReviewStateRequest,
+  BuildDemoReviewStateResponse,
+  CreateFeedbackSetRequest,
+  CreateFeedbackSetResponse,
+  GetAnalysisRunRequest,
+  GetAnalysisRunResponse,
+  SynthesizeFeedbackSetRequest,
+  SynthesizeFeedbackSetResponse,
+} from "@/lib/types/api"
+import type {
   AnalysisRun,
   AnalysisTarget,
-  ChatRequest,
-  ChatResponse,
   DashboardPayload,
   DataSource,
   FeedbackSet,
 } from "@/lib/types/contracts"
-
-export interface CreateFeedbackSetInput {
-  analysisTarget: Pick<AnalysisTarget, "name" | "description">
-  analysisGoal: AnalysisGoal
-  name?: string | null
-}
-
-export interface CreateFeedbackSetResult {
-  analysisTarget: AnalysisTarget
-  feedbackSet: FeedbackSet
-}
-
-export interface AddDemoSourceInput {
-  feedbackSetId: string
-  demoProductId: DemoProductId
-}
-
-export interface AddCsvSourceInput {
-  feedbackSetId: string
-  sourceLabel?: string
-  fileName?: string
-  itemCount?: number
-}
-
-export interface AddPastedSourceInput {
-  feedbackSetId: string
-  sourceLabel?: string
-  pastedText?: string
-  itemCount?: number
-}
-
-export interface AddXSourceInput {
-  feedbackSetId: string
-  sourceLabel?: string
-  query: string
-  itemCount?: number
-}
-
-export interface SynthesizeFeedbackSetInput {
-  feedbackSetId: string
-}
-
-export interface AnalysisRunResult {
-  analysisRun: AnalysisRun
-  dashboard: DashboardPayload
-}
 
 type MockFeedbackSetRecord = {
   analysisTarget: AnalysisTarget
@@ -72,11 +45,11 @@ type MockFeedbackSetRecord = {
 }
 
 const feedbackSetStore = new Map<string, MockFeedbackSetRecord>()
-const analysisRunStore = new Map<string, AnalysisRunResult>()
+const analysisRunStore = new Map<string, GetAnalysisRunResponse>()
 
 export async function createFeedbackSet(
-  input: CreateFeedbackSetInput,
-): Promise<CreateFeedbackSetResult> {
+  input: CreateFeedbackSetRequest,
+): Promise<CreateFeedbackSetResponse> {
   await delay(120)
 
   const analysisTarget: AnalysisTarget = {
@@ -107,8 +80,8 @@ export async function createFeedbackSet(
 }
 
 export async function addDemoSource(
-  input: AddDemoSourceInput,
-): Promise<DataSource> {
+  input: AddDemoSourceRequest,
+): Promise<AddDemoSourceResponse> {
   await delay(80)
   const product = DEMO_PRODUCTS.find((entry) => entry.id === input.demoProductId)
   const source = createSource({
@@ -122,12 +95,12 @@ export async function addDemoSource(
   })
 
   persistSource(source)
-  return source
+  return { source }
 }
 
 export async function addCsvSource(
-  input: AddCsvSourceInput,
-): Promise<DataSource> {
+  input: AddCsvSourceRequest,
+): Promise<AddCsvSourceResponse> {
   await delay(80)
   const source = createSource({
     feedbackSetId: input.feedbackSetId,
@@ -140,12 +113,12 @@ export async function addCsvSource(
   })
 
   persistSource(source)
-  return source
+  return { source }
 }
 
 export async function addPastedSource(
-  input: AddPastedSourceInput,
-): Promise<DataSource> {
+  input: AddPastedSourceRequest,
+): Promise<AddPastedSourceResponse> {
   await delay(80)
   const source = createSource({
     feedbackSetId: input.feedbackSetId,
@@ -158,10 +131,12 @@ export async function addPastedSource(
   })
 
   persistSource(source)
-  return source
+  return { source }
 }
 
-export async function addXSource(input: AddXSourceInput): Promise<DataSource> {
+export async function addXSource(
+  input: AddXSourceRequest,
+): Promise<AddXSourceResponse> {
   await delay(80)
   const source = createSource({
     feedbackSetId: input.feedbackSetId,
@@ -174,12 +149,12 @@ export async function addXSource(input: AddXSourceInput): Promise<DataSource> {
   })
 
   persistSource(source)
-  return source
+  return { source }
 }
 
 export async function synthesizeFeedbackSet(
-  input: SynthesizeFeedbackSetInput,
-): Promise<AnalysisRun> {
+  input: SynthesizeFeedbackSetRequest,
+): Promise<SynthesizeFeedbackSetResponse> {
   await delay(150)
 
   const record = feedbackSetStore.get(input.feedbackSetId)
@@ -219,14 +194,14 @@ export async function synthesizeFeedbackSet(
   record.feedbackSet.status = "completed"
   record.feedbackSet.updatedAt = now()
 
-  return analysisRun
+  return { analysisRun }
 }
 
 export async function getAnalysisRun(
-  analysisRunId: string,
-): Promise<AnalysisRunResult> {
+  request: GetAnalysisRunRequest,
+): Promise<GetAnalysisRunResponse> {
   await delay(100)
-  const result = analysisRunStore.get(analysisRunId)
+  const result = analysisRunStore.get(request.analysisRunId)
   if (!result) {
     throw new Error("Analysis run not found.")
   }
@@ -234,8 +209,8 @@ export async function getAnalysisRun(
 }
 
 export async function askAnalysisQuestion(
-  request: ChatRequest,
-): Promise<ChatResponse> {
+  request: AskAnalysisQuestionRequest,
+): Promise<AskAnalysisQuestionResponse> {
   await delay(250)
 
   const normalized = request.question.toLowerCase()
@@ -257,6 +232,82 @@ export async function askAnalysisQuestion(
   }
 }
 
+export function buildDemoReviewState(
+  request: BuildDemoReviewStateRequest,
+): BuildDemoReviewStateResponse {
+  const demoProduct = DEMO_PRODUCTS.find((entry) => entry.id === request.demoProductId)
+
+  return {
+    product: {
+      name: demoProduct?.label ?? "Productivity Tool",
+      description:
+        demoProduct?.description ??
+        "Tasks, notifications, and collaboration feedback from teams.",
+    },
+    sources: [
+      {
+        id: `demo-${request.demoProductId}`,
+        sourceType: "demo_dataset",
+        sourceTag: SOURCE_TAG_BY_TYPE.demo_dataset,
+        sourceLabel: `${demoProduct?.label ?? "Productivity Tool"} Demo Dataset`,
+        itemCount: demoProduct?.count ?? 482,
+        status: "Ready",
+        mockConfig: { demoProductId: request.demoProductId },
+      },
+    ],
+  }
+}
+
+export function buildCustomReviewState(
+  request: BuildCustomReviewStateRequest,
+): BuildCustomReviewStateResponse {
+  const sources = (request.existingSources ?? []).filter(
+    (source) => source.sourceType === "demo_dataset",
+  )
+
+  if (request.selectedSourceIds.includes("csv")) {
+    sources.push(
+      createReviewSource({
+        id: "csv-upload",
+        sourceType: "csv_upload",
+        sourceLabel: "Uploaded CSV",
+        itemCount: 318,
+      }),
+    )
+  }
+
+  if (request.selectedSourceIds.includes("paste")) {
+    sources.push(
+      createReviewSource({
+        id: "pasted",
+        sourceType: "pasted_text",
+        sourceLabel: "Pasted Reviews",
+        itemCount: 24,
+      }),
+    )
+  }
+
+  if (request.selectedSourceIds.includes("search")) {
+    const query = request.searchQuery || "Monday.com notifications"
+    sources.push(
+      createReviewSource({
+        id: "x-search",
+        sourceType: "x_search",
+        sourceLabel: `X Search: "${query}"`,
+        itemCount: 86,
+        mockConfig: {
+          xQuery: query,
+        },
+      }),
+    )
+  }
+
+  return {
+    product: request.product,
+    sources,
+  }
+}
+
 function buildDashboardPayload(analysisRunId: string): DashboardPayload {
   return {
     ...MOCK_DASHBOARD_PAYLOAD,
@@ -264,6 +315,30 @@ function buildDashboardPayload(analysisRunId: string): DashboardPayload {
       ...MOCK_DASHBOARD_PAYLOAD.analysisContext,
       analysisRunId,
     },
+  }
+}
+
+function createReviewSource({
+  id,
+  sourceType,
+  sourceLabel,
+  itemCount,
+  mockConfig,
+}: {
+  id: string
+  sourceType: ConfiguredSource["sourceType"]
+  sourceLabel: string
+  itemCount: number
+  mockConfig?: ConfiguredSource["mockConfig"]
+}): ConfiguredSource {
+  return {
+    id,
+    sourceType,
+    sourceTag: SOURCE_TAG_BY_TYPE[sourceType],
+    sourceLabel,
+    itemCount,
+    status: "Ready",
+    mockConfig,
   }
 }
 

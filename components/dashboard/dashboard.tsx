@@ -61,7 +61,7 @@ export function Dashboard({
       setErrorMessage(null)
 
       try {
-        const result = await getAnalysisRun(analysisRunId)
+        const result = await getAnalysisRun({ analysisRunId })
         if (!cancelled) {
           setDashboard(result.dashboard)
         }
