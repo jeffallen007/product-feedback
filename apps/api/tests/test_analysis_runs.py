@@ -21,11 +21,13 @@ class FakeAnalysisSupabaseClient:
         has_sources: bool = True,
         total_feedback_count: int = 12,
         dashboard_summary: dict[str, object] | None = None,
+        fail_dashboard_insert: bool = False,
     ) -> None:
         self.calls: list[tuple[str, dict[str, object] | dict[str, str]]] = []
         self.has_sources = has_sources
         self.total_feedback_count = total_feedback_count
         self.dashboard_summary = dashboard_summary
+        self.fail_dashboard_insert = fail_dashboard_insert
 
     def fetch_single_row(
         self,
@@ -34,6 +36,12 @@ class FakeAnalysisSupabaseClient:
         filters: dict[str, str],
     ) -> dict[str, object]:
         self.calls.append((f"{table}:fetch_single", filters))
+        if table == "analysis_targets":
+            return {
+                "id": filters["id"],
+                "name": "Pulse Fitness",
+                "description": "A mobile fitness coaching app for guided routines.",
+            }
         if table == "feedback_sets":
             return {
                 "id": filters["id"],
@@ -80,7 +88,7 @@ class FakeAnalysisSupabaseClient:
                         "source_label": "Productivity Tool Demo Dataset",
                         "item_count": self.total_feedback_count,
                         "status": "ready",
-                        "metadata_json": {},
+                        "metadata_json": {"demo_product_id": "productivity_tool"},
                         "created_at": datetime(2026, 6, 18, 8, 5, tzinfo=UTC).isoformat(),
                     }
                 ]
@@ -88,28 +96,48 @@ class FakeAnalysisSupabaseClient:
                 else []
             )
         if table == "feedback_items":
-            return []
+            return [
+                {
+                    "id": f"item_{index}",
+                    "feedback_set_id": filters["feedback_set_id"],
+                    "source_id": "source_789",
+                    "raw_text": f"Sample review {index}",
+                    "normalized_text": f"sample review {index}",
+                    "rating": 4 if index % 2 else 3,
+                    "source_type": "demo_dataset",
+                    "source_label": "Productivity Tool Demo Dataset",
+                }
+                for index in range(1, self.total_feedback_count + 1)
+            ]
         if table == "dashboard_summaries":
             return [] if self.dashboard_summary is None else [self.dashboard_summary]
         raise AssertionError(f"Unexpected table {table}")
 
     def insert_row(self, table: str, payload: dict[str, object]) -> dict[str, object]:
         self.calls.append((table, payload))
-        if table != "analysis_runs":
-            raise AssertionError(f"Unexpected insert table {table}")
-        return {
-            "id": "run_123",
-            "feedback_set_id": payload["feedback_set_id"],
-            "status": payload["status"],
-            "current_step": payload["current_step"],
-            "started_at": payload["started_at"],
-            "completed_at": payload["completed_at"],
-            "error_message": payload["error_message"],
-            "metadata_json": payload["metadata_json"],
-        }
+        if table == "analysis_runs":
+            return {
+                "id": "run_123",
+                "feedback_set_id": payload["feedback_set_id"],
+                "status": payload["status"],
+                "current_step": payload["current_step"],
+                "started_at": payload["started_at"],
+                "completed_at": payload["completed_at"],
+                "error_message": payload["error_message"],
+                "metadata_json": payload["metadata_json"],
+            }
+        if table == "dashboard_summaries":
+            if self.fail_dashboard_insert:
+                raise SupabaseInsertError("Supabase insert failed for table 'dashboard_summaries'.")
+            return {
+                "id": "summary_123",
+                "analysis_run_id": payload["analysis_run_id"],
+                "summary_payload": payload["summary_payload"],
+            }
+        raise AssertionError(f"Unexpected insert table {table}")
 
 
-def test_create_placeholder_run_persists_analysis_run() -> None:
+def test_create_placeholder_run_persists_analysis_run_and_dashboard_summary() -> None:
     client = FakeAnalysisSupabaseClient()
     service = AnalysisRunService(client)  # type: ignore[arg-type]
 
@@ -122,10 +150,17 @@ def test_create_placeholder_run_persists_analysis_run() -> None:
     assert response.analysis_run.status == "completed"
     assert response.analysis_run.metadata["total_feedback_count"] == 12
     assert response.analysis_run.metadata["source_count"] == 1
+    dashboard_insert = next(call[1] for call in client.calls if call[0] == "dashboard_summaries")
+    assert dashboard_insert["analysis_run_id"] == "run_123"
+    assert isinstance(dashboard_insert["summary_payload"], dict)
+    assert dashboard_insert["summary_payload"]["analysisContext"]["feedbackItemCount"] == 12
     assert [call[0] for call in client.calls] == [
         "feedback_sets:fetch_single",
+        "analysis_targets:fetch_single",
         "data_sources:fetch_rows",
+        "feedback_items:fetch_rows",
         "analysis_runs",
+        "dashboard_summaries",
     ]
 
 
@@ -158,7 +193,116 @@ def test_create_placeholder_run_rejects_empty_feedback_set() -> None:
         raise AssertionError("Expected EmptyFeedbackSetError")
 
 
-def test_get_analysis_run_returns_placeholder_dashboard_response() -> None:
+def test_get_analysis_run_returns_dashboard_when_summary_exists() -> None:
+    client = FakeAnalysisSupabaseClient(
+        dashboard_summary={
+            "id": "summary_123",
+            "analysis_run_id": "run_123",
+            "summary_payload": {
+                "analysisContext": {
+                    "analysisRunId": "run_123",
+                    "productName": "Pulse Fitness",
+                    "productDescription": "A mobile fitness coaching app for guided routines.",
+                    "goal": "Full Product Feedback Synthesis",
+                    "processingMethod": "Placeholder Backend Summary",
+                    "sourceCount": 1,
+                    "feedbackItemCount": 12,
+                    "lastRunAt": "2026-06-18T09:00:00+00:00",
+                },
+                "sourceMix": [
+                    {
+                        "sourceId": "source_789",
+                        "label": "Productivity Tool Demo Dataset",
+                        "sourceType": "demo_dataset",
+                        "count": 12,
+                        "unit": "items",
+                        "percent": 100,
+                    }
+                ],
+                "kpis": [{"label": "Feedback items analyzed", "value": "12"}],
+                "executiveSummary": "Placeholder summary.",
+                "sentimentBreakdown": {
+                    "overall": [
+                        {"label": "Positive", "value": 35},
+                        {"label": "Neutral", "value": 25},
+                        {"label": "Negative", "value": 40},
+                    ],
+                    "bySource": [
+                        {"sourceLabel": "Productivity Tool Demo Dataset", "negativePercent": 40}
+                    ],
+                },
+                "classificationSummary": [{"category": "ux_issue", "count": 4, "percent": 33}],
+                "topThemes": [
+                    {
+                        "id": "workflow_friction",
+                        "rank": 1,
+                        "name": "Workflow friction",
+                        "description": "Users hit friction when managing daily planning flows.",
+                        "count": 4,
+                        "percent": 33,
+                        "sentiment": "Mostly negative",
+                        "priority": "High",
+                        "sourceCoverage": "Demo Dataset",
+                    }
+                ],
+                "painPoints": [
+                    {
+                        "title": "Workflow friction",
+                        "summary": "Users hit friction when managing daily planning flows.",
+                        "evidenceCount": 4,
+                        "impact": "Slows down repeated task planning.",
+                        "recommendedAction": "Reduce planning friction.",
+                            "representativeQuotes": [
+                                {
+                                    "text": "Planning repeats feel tedious.",
+                                    "sourceLabel": "Productivity Tool Demo Dataset",
+                                }
+                            ],
+                    }
+                ],
+                "featureRequests": [
+                    {
+                        "request": "Add reusable plan templates.",
+                        "userNeed": "Reduce friction in the core workflow",
+                        "supportingEvidence": "Demo Dataset",
+                        "priority": "High",
+                    }
+                ],
+                "roadmapRecommendations": [
+                    {
+                        "phase": "Now",
+                        "items": [{"title": "Fix setup friction", "rationale": "Immediate improvement"}],
+                    }
+                ],
+                "representativeQuotes": [
+                    {
+                        "text": "Planning repeats feel tedious.",
+                        "sourceLabel": "Productivity Tool Demo Dataset",
+                        "themeName": "Workflow friction",
+                        "category": "ux_issue",
+                    }
+                ],
+                "modelSignals": [
+                    {
+                        "label": "Placeholder confidence",
+                        "value": "Deterministic fixture-derived summary",
+                    }
+                ],
+            },
+        }
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.get_analysis_run("run_123")
+
+    assert response.analysis_run.id == "run_123"
+    assert response.dashboard is not None
+    assert response.dashboard.analysis_context.feedback_item_count == 12
+    assert response.dashboard.executive_summary == "Placeholder summary."
+    assert response.placeholder_message is None
+
+
+def test_get_analysis_run_returns_placeholder_when_summary_missing() -> None:
     client = FakeAnalysisSupabaseClient()
     service = AnalysisRunService(client)  # type: ignore[arg-type]
 
@@ -184,6 +328,18 @@ def test_get_analysis_run_rejects_missing_run() -> None:
         pass
     else:
         raise AssertionError("Expected AnalysisRunNotFoundError")
+
+
+def test_create_placeholder_run_surfaces_dashboard_insert_failure() -> None:
+    client = FakeAnalysisSupabaseClient(fail_dashboard_insert=True)
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    try:
+        service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    except SupabaseInsertError as exc:
+        assert "dashboard_summaries" in str(exc)
+    else:
+        raise AssertionError("Expected SupabaseInsertError")
 
 
 def test_analysis_run_routes_surface_errors() -> None:

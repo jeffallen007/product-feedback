@@ -39,3 +39,6 @@ The health endpoint will be available at `GET /health`.
 - `POST /feedback-sets/{feedback_set_id}/sources/demo`
 - `POST /feedback-sets/{feedback_set_id}/synthesize`
 - `GET /analysis-runs/{analysis_run_id}`
+
+`POST /feedback-sets/{feedback_set_id}/synthesize` currently creates both a placeholder
+`analysis_runs` row and a placeholder `dashboard_summaries` row derived from persisted demo-source metadata.
