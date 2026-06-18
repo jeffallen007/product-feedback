@@ -7,11 +7,11 @@ import { Card } from "@/components/ui/card"
 import { PrivacyNotice } from "@/components/privacy-notice"
 import { ProductContextForm } from "@/components/product-context-form"
 import { ArrowRight, ArrowLeft, Upload } from "lucide-react"
-import {
-  SEARCH_CHIPS,
-  type ProductContext,
-  type WorkflowSourceId,
-} from "@/lib/mocks/workflow"
+import { SEARCH_CHIPS } from "@/lib/mocks/workflow"
+import type {
+  ProductContext,
+  WorkflowSourceId,
+} from "@/lib/types/workflow"
 
 function PanelHeader({
   title,

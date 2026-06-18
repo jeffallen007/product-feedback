@@ -2,10 +2,8 @@
 
 import { Button } from "@/components/ui/button"
 import { ArrowRight, ArrowLeft, Check } from "lucide-react"
-import {
-  DEMO_PRODUCTS,
-  type DemoProductId,
-} from "@/lib/mocks/workflow"
+import { DEMO_PRODUCTS } from "@/lib/mocks/workflow"
+import type { DemoProductId } from "@/lib/types/workflow"
 
 export function StepDemoProduct({
   selected,

@@ -3,11 +3,7 @@ import {
   DEFAULT_CHAT_RESPONSE,
   MOCK_DASHBOARD_PAYLOAD,
 } from "@/lib/mocks/dashboard"
-import {
-  DEMO_PRODUCTS,
-  SOURCE_TAG_BY_TYPE,
-  type ConfiguredSource,
-} from "@/lib/mocks/workflow"
+import { DEMO_PRODUCTS } from "@/lib/mocks/workflow"
 import type {
   AddCsvSourceRequest,
   AddCsvSourceResponse,
@@ -37,6 +33,10 @@ import type {
   DataSource,
   FeedbackSet,
 } from "@/lib/types/contracts"
+import {
+  SOURCE_TAG_BY_TYPE,
+  type ConfiguredSource,
+} from "@/lib/types/workflow"
 
 type MockFeedbackSetRecord = {
   analysisTarget: AnalysisTarget

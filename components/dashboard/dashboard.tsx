@@ -23,7 +23,7 @@ import {
   DASHBOARD_SOURCE_TABS,
   type AnalysisSourceKey,
 } from "@/lib/mocks/dashboard"
-import type { SourceTag } from "@/lib/mocks/workflow"
+import type { SourceTag } from "@/lib/types/workflow"
 import type { DashboardPayload } from "@/lib/types/contracts"
 import { getAnalysisRun } from "@/lib/services/analysis-service"
 import {

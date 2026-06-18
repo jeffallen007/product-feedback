@@ -28,7 +28,7 @@ import {
   ANALYSIS_GOALS,
   type ConfiguredSource,
   type ProductContext,
-} from "@/lib/mocks/workflow"
+} from "@/lib/types/workflow"
 import type { AnalysisGoal, SourceType } from "@/lib/types/contracts"
 
 const TYPE_ICON: Record<SourceType, LucideIcon> = {

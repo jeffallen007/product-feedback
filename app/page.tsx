@@ -10,13 +10,13 @@ import { StepConfigure } from "@/components/step-configure"
 import { StepReview } from "@/components/step-review"
 import { ProcessingState } from "@/components/processing-state"
 import { Dashboard } from "@/components/dashboard/dashboard"
-import {
-  EMPTY_PRODUCT_CONTEXT,
-  type ConfiguredSource,
-  type DemoProductId,
-  type ProductContext,
-  type WorkflowSourceId,
-} from "@/lib/mocks/workflow"
+import type {
+  ConfiguredSource,
+  DemoProductId,
+  ProductContext,
+  WorkflowSourceId,
+} from "@/lib/types/workflow"
+import { EMPTY_PRODUCT_CONTEXT } from "@/lib/types/workflow"
 import type { AnalysisGoal } from "@/lib/types/contracts"
 import {
   addCsvSource,

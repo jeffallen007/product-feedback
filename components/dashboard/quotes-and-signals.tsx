@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card"
 import { SourceBadge } from "@/components/dashboard/source-badge"
 import { Quote, Search, Users2, Smartphone, MessageSquare } from "lucide-react"
 import type { DashboardPayload } from "@/lib/types/contracts"
-import type { SourceTag } from "@/lib/mocks/workflow"
+import type { SourceTag } from "@/lib/types/workflow"
 
 const MODEL_SIGNAL_ICONS = [Search, Users2, Smartphone, MessageSquare]
 

@@ -3,7 +3,7 @@
 import { Card } from "@/components/ui/card"
 import { SourceBadge } from "@/components/dashboard/source-badge"
 import type { DashboardSourceMixItem } from "@/lib/types/contracts"
-import type { SourceTag } from "@/lib/mocks/workflow"
+import type { SourceTag } from "@/lib/types/workflow"
 
 const BAR_COLOR: Record<SourceTag, string> = {
   "Demo Dataset": "var(--chart-1)",

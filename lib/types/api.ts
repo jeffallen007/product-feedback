@@ -12,7 +12,7 @@ import type {
   DemoProductId,
   ProductContext,
   WorkflowSourceId,
-} from "@/lib/mocks/workflow"
+} from "@/lib/types/workflow"
 
 export interface CreateFeedbackSetRequest {
   analysisTarget: Pick<AnalysisTarget, "name" | "description">

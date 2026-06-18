@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowRight, ArrowLeft } from "lucide-react"
 import { ProductContextForm } from "@/components/product-context-form"
-import {
-  SOURCE_DEFINITIONS,
-  type ProductContext,
-  type WorkflowSourceId,
-} from "@/lib/mocks/workflow"
+import { SOURCE_DEFINITIONS } from "@/lib/mocks/workflow"
+import type {
+  ProductContext,
+  WorkflowSourceId,
+} from "@/lib/types/workflow"
 
 export function StepSources({
   product,
