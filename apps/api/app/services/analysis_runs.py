@@ -20,6 +20,7 @@ from app.schemas.chat import (
     AskAnalysisQuestionResponse,
     ChatEvidenceItemResponse,
     ChatMessageResponse,
+    GetAnalysisChatHistoryResponse,
 )
 
 
@@ -159,6 +160,23 @@ class AnalysisRunService:
             followUpSuggestions=answer_payload["follow_up_suggestions"],
             userMessage=self._to_chat_message_response(user_message),
             assistantMessage=self._to_chat_message_response(assistant_message),
+        )
+
+    def get_chat_history(
+        self,
+        analysis_run_id: str,
+    ) -> GetAnalysisChatHistoryResponse:
+        self._get_analysis_run_row(analysis_run_id)
+        chat_rows = self._supabase.fetch_rows(
+            "chat_messages",
+            filters={"analysis_run_id": analysis_run_id},
+        )
+        ordered_rows = sorted(
+            chat_rows,
+            key=lambda row: str(row.get("created_at") or ""),
+        )
+        return GetAnalysisChatHistoryResponse(
+            messages=[self._to_chat_message_response(row) for row in ordered_rows],
         )
 
     def _get_analysis_run_row(self, analysis_run_id: str) -> dict[str, object]:

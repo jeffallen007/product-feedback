@@ -24,6 +24,7 @@ class FakeAnalysisSupabaseClient:
         dashboard_summary: dict[str, object] | None = None,
         fail_dashboard_insert: bool = False,
         fail_chat_insert: bool = False,
+        chat_history: list[dict[str, object]] | None = None,
     ) -> None:
         self.calls: list[tuple[str, dict[str, object] | dict[str, str]]] = []
         self.has_sources = has_sources
@@ -31,6 +32,7 @@ class FakeAnalysisSupabaseClient:
         self.dashboard_summary = dashboard_summary
         self.fail_dashboard_insert = fail_dashboard_insert
         self.fail_chat_insert = fail_chat_insert
+        self.chat_history = chat_history or []
 
     def fetch_single_row(
         self,
@@ -115,6 +117,8 @@ class FakeAnalysisSupabaseClient:
             ]
         if table == "dashboard_summaries":
             return [] if self.dashboard_summary is None else [self.dashboard_summary]
+        if table == "chat_messages":
+            return self.chat_history
         raise AssertionError(f"Unexpected table {table}")
 
     def insert_row(self, table: str, payload: dict[str, object]) -> dict[str, object]:
@@ -288,6 +292,41 @@ def make_dashboard_summary() -> dict[str, object]:
     }
 
 
+def make_chat_history() -> list[dict[str, object]]:
+    return [
+        {
+            "id": "message_2",
+            "analysis_run_id": "run_123",
+            "role": "assistant",
+            "question": None,
+            "answer": "The top issue is notification overload.",
+            "scope": "all",
+            "evidence_json": [
+                {
+                    "feedbackItemId": "item_1",
+                    "text": "Notifications are too aggressive. I get pinged for minor status changes all day.",
+                    "sourceLabel": "Productivity Tool Demo Dataset",
+                    "themeName": "Notification overload",
+                    "category": "ux_issue",
+                }
+            ],
+            "follow_up_suggestions": ["Show evidence for notification overload."],
+            "created_at": datetime(2026, 6, 18, 9, 2, tzinfo=UTC).isoformat(),
+        },
+        {
+            "id": "message_1",
+            "analysis_run_id": "run_123",
+            "role": "user",
+            "question": "What should we prioritize first?",
+            "answer": None,
+            "scope": "all",
+            "evidence_json": [],
+            "follow_up_suggestions": [],
+            "created_at": datetime(2026, 6, 18, 9, 1, tzinfo=UTC).isoformat(),
+        },
+    ]
+
+
 def test_create_placeholder_run_persists_analysis_run_and_dashboard_summary() -> None:
     client = FakeAnalysisSupabaseClient()
     service = AnalysisRunService(client)  # type: ignore[arg-type]
@@ -443,6 +482,44 @@ def test_ask_placeholder_question_surfaces_chat_insert_failure() -> None:
         raise AssertionError("Expected SupabaseInsertError")
 
 
+def test_get_chat_history_returns_messages_in_chronological_order() -> None:
+    client = FakeAnalysisSupabaseClient(chat_history=make_chat_history())
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.get_chat_history("run_123")
+
+    assert [message.id for message in response.messages] == ["message_1", "message_2"]
+    assert response.messages[0].role == "user"
+    assert response.messages[1].role == "assistant"
+    assert response.messages[1].evidence[0].feedback_item_id == "item_1"
+
+
+def test_get_chat_history_returns_empty_list_for_existing_run_without_messages() -> None:
+    client = FakeAnalysisSupabaseClient(chat_history=[])
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.get_chat_history("run_123")
+
+    assert response.messages == []
+
+
+def test_get_chat_history_rejects_missing_run() -> None:
+    class MissingRunClient(FakeAnalysisSupabaseClient):
+        def fetch_single_row(self, table: str, *, filters: dict[str, str]) -> dict[str, object]:
+            if table == "analysis_runs":
+                raise SupabaseInsertError("Supabase query returned no rows for table 'analysis_runs'.")
+            return super().fetch_single_row(table, filters=filters)
+
+    service = AnalysisRunService(MissingRunClient())  # type: ignore[arg-type]
+
+    try:
+        service.get_chat_history("run_missing")
+    except AnalysisRunNotFoundError:
+        pass
+    else:
+        raise AssertionError("Expected AnalysisRunNotFoundError")
+
+
 def test_get_analysis_run_returns_placeholder_when_summary_missing() -> None:
     client = FakeAnalysisSupabaseClient()
     service = AnalysisRunService(client)  # type: ignore[arg-type]
@@ -494,6 +571,9 @@ def test_analysis_run_routes_surface_errors() -> None:
         def ask_placeholder_question(self, _analysis_run_id, _request):  # type: ignore[no-untyped-def]
             raise SupabaseInsertError("Supabase insert failed for table 'chat_messages'.")
 
+        def get_chat_history(self, _analysis_run_id):  # type: ignore[no-untyped-def]
+            raise SupabaseInsertError("Supabase query failed for table 'chat_messages'.")
+
     app.dependency_overrides[get_analysis_run_service] = lambda: FailingService()
     client = TestClient(app)
 
@@ -503,6 +583,7 @@ def test_analysis_run_routes_surface_errors() -> None:
         "/analysis-runs/run_123/chat",
         json={"question": "What should we prioritize first?", "scope": "all"},
     )
+    history_response = client.get("/analysis-runs/run_123/chat")
 
     app.dependency_overrides.clear()
 
@@ -512,3 +593,5 @@ def test_analysis_run_routes_surface_errors() -> None:
     assert "run_missing" in fetch_response.json()["detail"]
     assert chat_response.status_code == 502
     assert "chat_messages" in chat_response.json()["detail"]
+    assert history_response.status_code == 502
+    assert "chat_messages" in history_response.json()["detail"]

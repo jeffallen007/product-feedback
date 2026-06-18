@@ -6,7 +6,11 @@ from app.schemas.analysis_runs import (
     SynthesizeFeedbackSetRequest,
     SynthesizeFeedbackSetResponse,
 )
-from app.schemas.chat import AskAnalysisQuestionRequest, AskAnalysisQuestionResponse
+from app.schemas.chat import (
+    AskAnalysisQuestionRequest,
+    AskAnalysisQuestionResponse,
+    GetAnalysisChatHistoryResponse,
+)
 from app.services.analysis_runs import AnalysisRunService
 
 router = APIRouter(tags=["analysis-runs"])
@@ -47,3 +51,14 @@ def ask_analysis_question(
     service: AnalysisRunService = Depends(get_analysis_run_service),
 ) -> AskAnalysisQuestionResponse:
     return service.ask_placeholder_question(analysis_run_id, request)
+
+
+@router.get(
+    "/analysis-runs/{analysis_run_id}/chat",
+    response_model=GetAnalysisChatHistoryResponse,
+)
+def get_analysis_chat_history(
+    analysis_run_id: str,
+    service: AnalysisRunService = Depends(get_analysis_run_service),
+) -> GetAnalysisChatHistoryResponse:
+    return service.get_chat_history(analysis_run_id)

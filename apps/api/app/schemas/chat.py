@@ -45,3 +45,9 @@ class AskAnalysisQuestionResponse(BaseModel):
     follow_up_suggestions: list[str]
     user_message: ChatMessageResponse
     assistant_message: ChatMessageResponse
+
+
+class GetAnalysisChatHistoryResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    messages: list[ChatMessageResponse]
