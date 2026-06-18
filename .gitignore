@@ -1,18 +1,9 @@
-# ignore these files in git
-.venv/
-.DS_Store
-
+.env
+.venv
+apps/api/.venv
+__pycache__/
+.pytest_cache/
+*.pyc
 node_modules/
 .next/
-
-.env
-.env.local
-.env.*.local
-
-.vercel/
-
-# Python backend
-apps/api/.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
+tsconfig.tsbuildinfo

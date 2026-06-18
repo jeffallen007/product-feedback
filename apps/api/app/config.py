@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 import os
 
@@ -7,8 +7,12 @@ import os
 class Settings:
     app_name: str = "AI Product Feedback Synthesizer API"
     app_version: str = "0.1.0"
-    environment: str = os.getenv("APP_ENV", "development")
+    environment: str = field(default_factory=lambda: os.getenv("APP_ENV", "development"))
     api_prefix: str = "/api"
+    supabase_url: str | None = field(default_factory=lambda: os.getenv("SUPABASE_URL"))
+    supabase_service_role_key: str | None = field(
+        default_factory=lambda: os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
+    )
 
 
 @lru_cache
