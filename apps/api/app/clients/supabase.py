@@ -26,12 +26,27 @@ class SupabaseRestClient:
     def insert_row(self, table: str, payload: dict[str, Any]) -> dict[str, Any]:
         return self._write_request("post", table, payload)
 
+    def insert_rows(self, table: str, payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        rows = self._write_request("post", table, payloads)
+        if not isinstance(rows, list):
+            raise SupabaseInsertError(
+                f"Supabase insert returned an invalid response for table '{table}'.",
+            )
+        normalized_rows: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise SupabaseInsertError(
+                    f"Supabase insert returned an invalid row for table '{table}'.",
+                )
+            normalized_rows.append(row)
+        return normalized_rows
+
     def fetch_single_row(
         self,
         table: str,
         *,
         filters: dict[str, str],
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         headers = {
             "apikey": self._service_role_key,
             "Authorization": f"Bearer {self._service_role_key}",
@@ -118,6 +133,9 @@ class SupabaseRestClient:
             raise SupabaseInsertError(
                 f"Supabase insert returned no rows for table '{table}'.",
             )
+
+        if isinstance(payload, list):
+            return rows
 
         row = rows[0]
         if not isinstance(row, dict):

@@ -1,4 +1,5 @@
 from app.clients.supabase import SupabaseRestClient
+from app.demo_feedback import DEMO_FEEDBACK_FIXTURES
 from app.demo_datasets import DEMO_DATASETS
 from app.errors import FeedbackSetNotFoundError, InvalidDemoProductError, SupabaseInsertError
 from app.schemas.feedback_sets import (
@@ -67,6 +68,9 @@ class FeedbackSetService:
             raise InvalidDemoProductError(
                 f"Unknown demo product id '{request.demo_product_id}'.",
             )
+        demo_feedback_items = DEMO_FEEDBACK_FIXTURES[request.demo_product_id]
+        inserted_item_count = len(demo_feedback_items)
+        source_label = f"{demo_dataset.label} Demo Dataset"
 
         try:
             feedback_set_row = self._supabase.fetch_single_row(
@@ -85,16 +89,35 @@ class FeedbackSetService:
             {
                 "feedback_set_id": feedback_set_id,
                 "source_type": "demo_dataset",
-                "source_label": f"{demo_dataset.label} Demo Dataset",
-                "item_count": demo_dataset.item_count,
+                "source_label": source_label,
+                "item_count": inserted_item_count,
                 "status": "ready",
                 "metadata_json": {
                     "demo_product_id": demo_dataset.id,
                     "description": demo_dataset.description,
+                    "fixture_record_count": inserted_item_count,
                 },
             },
         )
-        updated_total = int(feedback_set_row["total_feedback_count"]) + demo_dataset.item_count
+        feedback_item_rows = [
+            {
+                "feedback_set_id": feedback_set_id,
+                "source_id": source_row["id"],
+                "source_type": "demo_dataset",
+                "source_label": source_label,
+                "raw_text": item["raw_text"],
+                "normalized_text": item["normalized_text"],
+                "rating": item.get("rating"),
+                "feedback_date": item.get("feedback_date"),
+                "author_handle": item.get("author_handle"),
+                "url": item.get("url"),
+                "metadata_json": item.get("metadata_json", {}),
+            }
+            for item in demo_feedback_items
+        ]
+        self._supabase.insert_rows("feedback_items", feedback_item_rows)
+
+        updated_total = int(feedback_set_row["total_feedback_count"]) + inserted_item_count
         self._supabase.update_row(
             "feedback_sets",
             payload={"total_feedback_count": updated_total},
@@ -107,7 +130,7 @@ class FeedbackSetService:
                 feedbackSetId=str(source_row["feedback_set_id"]),
                 sourceType=str(source_row["source_type"]),
                 sourceLabel=str(source_row["source_label"]),
-                itemCount=int(source_row["item_count"]),
+                itemCount=inserted_item_count,
                 status=str(source_row["status"]),
                 metadata=source_row.get("metadata_json", {}),
                 createdAt=source_row["created_at"],
