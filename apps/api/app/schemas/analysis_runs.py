@@ -2,6 +2,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.chat import ChatMessageResponse
+from app.schemas.feedback_sets import (
+    AnalysisTargetResponse,
+    DataSourceResponse,
+    FeedbackSetResponse,
+)
 from app.schemas.feedback_sets import to_camel
 
 
@@ -184,4 +190,16 @@ class GetAnalysisRunResponse(BaseModel):
 
     analysis_run: AnalysisRunResponse
     dashboard: DashboardPayloadResponse | None = None
+    placeholder_message: str | None = None
+
+
+class AnalysisRunBundleResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
+
+    analysis_run: AnalysisRunResponse
+    feedback_set: FeedbackSetResponse
+    analysis_target: AnalysisTargetResponse
+    sources: list[DataSourceResponse]
+    dashboard: DashboardPayloadResponse | None = None
+    chat_history: list[ChatMessageResponse]
     placeholder_message: str | None = None

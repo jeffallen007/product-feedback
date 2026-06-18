@@ -46,6 +46,7 @@ class FakeAnalysisSupabaseClient:
                 "id": filters["id"],
                 "name": "Pulse Fitness",
                 "description": "A mobile fitness coaching app for guided routines.",
+                "created_at": datetime(2026, 6, 18, 7, 45, tzinfo=UTC).isoformat(),
             }
         if table == "feedback_sets":
             return {
@@ -520,6 +521,65 @@ def test_get_chat_history_rejects_missing_run() -> None:
         raise AssertionError("Expected AnalysisRunNotFoundError")
 
 
+def test_get_analysis_run_bundle_returns_complete_payload() -> None:
+    client = FakeAnalysisSupabaseClient(
+        dashboard_summary=make_dashboard_summary(),
+        chat_history=make_chat_history(),
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.get_analysis_run_bundle("run_123")
+
+    assert response.analysis_run.id == "run_123"
+    assert response.feedback_set.id == "set_456"
+    assert response.analysis_target.id == "target_123"
+    assert len(response.sources) == 1
+    assert response.sources[0].source_label == "Productivity Tool Demo Dataset"
+    assert response.dashboard is not None
+    assert response.dashboard.executive_summary == "Placeholder summary."
+    assert [message.id for message in response.chat_history] == ["message_1", "message_2"]
+    assert response.placeholder_message is None
+
+
+def test_get_analysis_run_bundle_returns_empty_chat_history_when_no_messages_exist() -> None:
+    client = FakeAnalysisSupabaseClient(
+        dashboard_summary=make_dashboard_summary(),
+        chat_history=[],
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.get_analysis_run_bundle("run_123")
+
+    assert response.chat_history == []
+
+
+def test_get_analysis_run_bundle_returns_placeholder_message_when_dashboard_missing() -> None:
+    client = FakeAnalysisSupabaseClient(chat_history=make_chat_history())
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.get_analysis_run_bundle("run_123")
+
+    assert response.dashboard is None
+    assert response.placeholder_message == "Dashboard summary has not been generated yet."
+
+
+def test_get_analysis_run_bundle_rejects_missing_run() -> None:
+    class MissingRunClient(FakeAnalysisSupabaseClient):
+        def fetch_single_row(self, table: str, *, filters: dict[str, str]) -> dict[str, object]:
+            if table == "analysis_runs":
+                raise SupabaseInsertError("Supabase query returned no rows for table 'analysis_runs'.")
+            return super().fetch_single_row(table, filters=filters)
+
+    service = AnalysisRunService(MissingRunClient())  # type: ignore[arg-type]
+
+    try:
+        service.get_analysis_run_bundle("run_missing")
+    except AnalysisRunNotFoundError:
+        pass
+    else:
+        raise AssertionError("Expected AnalysisRunNotFoundError")
+
+
 def test_get_analysis_run_returns_placeholder_when_summary_missing() -> None:
     client = FakeAnalysisSupabaseClient()
     service = AnalysisRunService(client)  # type: ignore[arg-type]
@@ -574,6 +634,9 @@ def test_analysis_run_routes_surface_errors() -> None:
         def get_chat_history(self, _analysis_run_id):  # type: ignore[no-untyped-def]
             raise SupabaseInsertError("Supabase query failed for table 'chat_messages'.")
 
+        def get_analysis_run_bundle(self, _analysis_run_id):  # type: ignore[no-untyped-def]
+            raise SupabaseInsertError("Supabase query failed for table 'analysis_runs'.")
+
     app.dependency_overrides[get_analysis_run_service] = lambda: FailingService()
     client = TestClient(app)
 
@@ -584,6 +647,7 @@ def test_analysis_run_routes_surface_errors() -> None:
         json={"question": "What should we prioritize first?", "scope": "all"},
     )
     history_response = client.get("/analysis-runs/run_123/chat")
+    bundle_response = client.get("/analysis-runs/run_123/bundle")
 
     app.dependency_overrides.clear()
 
@@ -595,3 +659,5 @@ def test_analysis_run_routes_surface_errors() -> None:
     assert "chat_messages" in chat_response.json()["detail"]
     assert history_response.status_code == 502
     assert "chat_messages" in history_response.json()["detail"]
+    assert bundle_response.status_code == 502
+    assert "analysis_runs" in bundle_response.json()["detail"]

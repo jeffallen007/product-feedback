@@ -41,6 +41,7 @@ The health endpoint will be available at `GET /health`.
 - `GET /analysis-runs/{analysis_run_id}`
 - `POST /analysis-runs/{analysis_run_id}/chat`
 - `GET /analysis-runs/{analysis_run_id}/chat`
+- `GET /analysis-runs/{analysis_run_id}/bundle`
 
 `POST /feedback-sets/{feedback_set_id}/synthesize` currently creates both a placeholder
 `analysis_runs` row and a placeholder `dashboard_summaries` row derived from persisted demo-source metadata.
@@ -50,3 +51,7 @@ placeholder assistant reply in `chat_messages`, without calling an LLM.
 
 `GET /analysis-runs/{analysis_run_id}/chat` returns persisted chat history for the run in chronological order,
 or an empty array when the run exists but has no chat messages yet.
+
+`GET /analysis-runs/{analysis_run_id}/bundle` returns a backend-owned post-synthesis payload for the demo slice,
+including the analysis run, feedback set, analysis target, sources, dashboard, chat history, and a placeholder
+message when no dashboard summary exists.

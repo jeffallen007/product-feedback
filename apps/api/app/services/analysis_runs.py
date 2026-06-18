@@ -9,6 +9,7 @@ from app.errors import (
     SupabaseInsertError,
 )
 from app.schemas.analysis_runs import (
+    AnalysisRunBundleResponse,
     AnalysisRunResponse,
     DashboardPayloadResponse,
     GetAnalysisRunResponse,
@@ -21,6 +22,11 @@ from app.schemas.chat import (
     ChatEvidenceItemResponse,
     ChatMessageResponse,
     GetAnalysisChatHistoryResponse,
+)
+from app.schemas.feedback_sets import (
+    AnalysisTargetResponse,
+    DataSourceResponse,
+    FeedbackSetResponse,
 )
 
 
@@ -167,16 +173,35 @@ class AnalysisRunService:
         analysis_run_id: str,
     ) -> GetAnalysisChatHistoryResponse:
         self._get_analysis_run_row(analysis_run_id)
-        chat_rows = self._supabase.fetch_rows(
-            "chat_messages",
-            filters={"analysis_run_id": analysis_run_id},
-        )
-        ordered_rows = sorted(
-            chat_rows,
-            key=lambda row: str(row.get("created_at") or ""),
-        )
         return GetAnalysisChatHistoryResponse(
-            messages=[self._to_chat_message_response(row) for row in ordered_rows],
+            messages=self._get_chat_history_messages(analysis_run_id),
+        )
+
+    def get_analysis_run_bundle(
+        self,
+        analysis_run_id: str,
+    ) -> AnalysisRunBundleResponse:
+        analysis_run = self._get_analysis_run_row(analysis_run_id)
+        feedback_set = self._get_feedback_set(str(analysis_run["feedback_set_id"]))
+        analysis_target = self._supabase.fetch_single_row(
+            "analysis_targets",
+            filters={"id": str(feedback_set["analysis_target_id"])},
+        )
+        sources = self._supabase.fetch_rows(
+            "data_sources",
+            filters={"feedback_set_id": str(feedback_set["id"])},
+        )
+        dashboard_payload = self._get_dashboard_payload(analysis_run_id)
+        placeholder_message = None if dashboard_payload is not None else "Dashboard summary has not been generated yet."
+
+        return AnalysisRunBundleResponse(
+            analysisRun=self._to_analysis_run_response(analysis_run),
+            feedbackSet=self._to_feedback_set_response(feedback_set),
+            analysisTarget=self._to_analysis_target_response(analysis_target),
+            sources=[self._to_data_source_response(source) for source in sources],
+            dashboard=dashboard_payload,
+            chatHistory=self._get_chat_history_messages(analysis_run_id),
+            placeholderMessage=placeholder_message,
         )
 
     def _get_analysis_run_row(self, analysis_run_id: str) -> dict[str, object]:
@@ -235,6 +260,42 @@ class AnalysisRunService:
         )
 
     @staticmethod
+    def _to_feedback_set_response(row: dict[str, object]) -> FeedbackSetResponse:
+        return FeedbackSetResponse(
+            id=str(row["id"]),
+            analysisTargetId=str(row["analysis_target_id"]),
+            name=row.get("name"),
+            analysisGoal=str(row["analysis_goal"]),
+            status=str(row["status"]),
+            totalFeedbackCount=int(row["total_feedback_count"]),
+            createdAt=row.get("created_at"),
+            updatedAt=row.get("updated_at"),
+        )
+
+    @staticmethod
+    def _to_analysis_target_response(row: dict[str, object]) -> AnalysisTargetResponse:
+        return AnalysisTargetResponse(
+            id=str(row["id"]),
+            name=str(row["name"]),
+            description=str(row["description"]),
+            createdAt=row.get("created_at"),
+        )
+
+    @staticmethod
+    def _to_data_source_response(row: dict[str, object]) -> DataSourceResponse:
+        metadata = row.get("metadata_json", {})
+        return DataSourceResponse(
+            id=str(row["id"]),
+            feedbackSetId=str(row["feedback_set_id"]),
+            sourceType=str(row["source_type"]),
+            sourceLabel=str(row["source_label"]),
+            itemCount=int(row["item_count"]),
+            status=str(row["status"]),
+            metadata=metadata if isinstance(metadata, dict) else {},
+            createdAt=row.get("created_at"),
+        )
+
+    @staticmethod
     def _to_chat_message_response(row: dict[str, object]) -> ChatMessageResponse:
         evidence_json = row.get("evidence_json", [])
         follow_up_suggestions = row.get("follow_up_suggestions", [])
@@ -252,6 +313,20 @@ class AnalysisRunService:
             followUpSuggestions=[str(item) for item in normalized_follow_ups],
             createdAt=row.get("created_at"),
         )
+
+    def _get_chat_history_messages(
+        self,
+        analysis_run_id: str,
+    ) -> list[ChatMessageResponse]:
+        chat_rows = self._supabase.fetch_rows(
+            "chat_messages",
+            filters={"analysis_run_id": analysis_run_id},
+        )
+        ordered_rows = sorted(
+            chat_rows,
+            key=lambda row: str(row.get("created_at") or ""),
+        )
+        return [self._to_chat_message_response(row) for row in ordered_rows]
 
     def _build_placeholder_dashboard(
         self,

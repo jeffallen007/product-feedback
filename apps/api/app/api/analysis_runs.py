@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.api.dependencies import get_analysis_run_service
 from app.schemas.analysis_runs import (
+    AnalysisRunBundleResponse,
     GetAnalysisRunResponse,
     SynthesizeFeedbackSetRequest,
     SynthesizeFeedbackSetResponse,
@@ -62,3 +63,14 @@ def get_analysis_chat_history(
     service: AnalysisRunService = Depends(get_analysis_run_service),
 ) -> GetAnalysisChatHistoryResponse:
     return service.get_chat_history(analysis_run_id)
+
+
+@router.get(
+    "/analysis-runs/{analysis_run_id}/bundle",
+    response_model=AnalysisRunBundleResponse,
+)
+def get_analysis_run_bundle(
+    analysis_run_id: str,
+    service: AnalysisRunService = Depends(get_analysis_run_service),
+) -> AnalysisRunBundleResponse:
+    return service.get_analysis_run_bundle(analysis_run_id)
