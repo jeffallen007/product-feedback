@@ -12,3 +12,11 @@ class InvalidDemoProductError(ValueError):
 
 class FeedbackSetNotFoundError(LookupError):
     """Raised when a feedback set does not exist."""
+
+
+class EmptyFeedbackSetError(ValueError):
+    """Raised when a feedback set cannot be synthesized because it has no data."""
+
+
+class AnalysisRunNotFoundError(LookupError):
+    """Raised when an analysis run does not exist."""

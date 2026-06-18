@@ -41,17 +41,20 @@ class SupabaseRestClient:
             normalized_rows.append(row)
         return normalized_rows
 
-    def fetch_single_row(
+    def fetch_rows(
         self,
         table: str,
         *,
         filters: dict[str, str],
-    ) -> dict[str, Any] | list[dict[str, Any]]:
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
         headers = {
             "apikey": self._service_role_key,
             "Authorization": f"Bearer {self._service_role_key}",
         }
-        params = {"select": "*", "limit": "1", **self._serialize_filters(filters)}
+        params = {"select": "*", **self._serialize_filters(filters)}
+        if limit is not None:
+            params["limit"] = str(limit)
 
         try:
             with httpx.Client(timeout=10.0) as client:
@@ -71,18 +74,33 @@ class SupabaseRestClient:
             )
 
         rows = response.json()
-        if not isinstance(rows, list) or not rows:
+        if not isinstance(rows, list):
+            raise SupabaseInsertError(
+                f"Supabase query returned an invalid response for table '{table}'.",
+            )
+
+        normalized_rows: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                raise SupabaseInsertError(
+                    f"Supabase query returned an invalid row for table '{table}'.",
+                )
+            normalized_rows.append(row)
+
+        return normalized_rows
+
+    def fetch_single_row(
+        self,
+        table: str,
+        *,
+        filters: dict[str, str],
+    ) -> dict[str, Any]:
+        rows = self.fetch_rows(table, filters=filters, limit=1)
+        if not rows:
             raise SupabaseInsertError(
                 f"Supabase query returned no rows for table '{table}'.",
             )
-
-        row = rows[0]
-        if not isinstance(row, dict):
-            raise SupabaseInsertError(
-                f"Supabase query returned an invalid row for table '{table}'.",
-            )
-
-        return row
+        return rows[0]
 
     def update_row(
         self,

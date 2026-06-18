@@ -1,10 +1,13 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.api.analysis_runs import router as analysis_runs_router
 from app.api.feedback_sets import router as feedback_sets_router
 from app.api.health import router as health_router
 from app.config import get_settings
 from app.errors import (
+    AnalysisRunNotFoundError,
+    EmptyFeedbackSetError,
     FeedbackSetNotFoundError,
     InvalidDemoProductError,
     MissingSupabaseConfigError,
@@ -52,6 +55,26 @@ def handle_feedback_set_not_found(
     )
 
 
+def handle_empty_feedback_set(
+    _request: Request,
+    exc: EmptyFeedbackSetError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
+    )
+
+
+def handle_analysis_run_not_found(
+    _request: Request,
+    exc: AnalysisRunNotFoundError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=404,
+        content={"detail": str(exc)},
+    )
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -76,8 +99,17 @@ def create_app() -> FastAPI:
         FeedbackSetNotFoundError,
         handle_feedback_set_not_found,
     )
+    app.add_exception_handler(
+        EmptyFeedbackSetError,
+        handle_empty_feedback_set,
+    )
+    app.add_exception_handler(
+        AnalysisRunNotFoundError,
+        handle_analysis_run_not_found,
+    )
     app.include_router(health_router)
     app.include_router(feedback_sets_router)
+    app.include_router(analysis_runs_router)
     return app
 
 

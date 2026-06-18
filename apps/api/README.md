@@ -37,3 +37,5 @@ The health endpoint will be available at `GET /health`.
 - `GET /health`
 - `POST /feedback-sets`
 - `POST /feedback-sets/{feedback_set_id}/sources/demo`
+- `POST /feedback-sets/{feedback_set_id}/synthesize`
+- `GET /analysis-runs/{analysis_run_id}`
