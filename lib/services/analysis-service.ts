@@ -4,6 +4,8 @@ import {
   MOCK_DASHBOARD_PAYLOAD,
 } from "@/lib/mocks/dashboard"
 import { DEMO_PRODUCTS } from "@/lib/mocks/workflow"
+import { isBackendDemoEnabled, backendRequest } from "@/lib/services/backend-client"
+import { mapBackendBundleResponse } from "@/lib/services/backend-mappers"
 import type {
   AddCsvSourceRequest,
   AddCsvSourceResponse,
@@ -21,8 +23,12 @@ import type {
   BuildDemoReviewStateResponse,
   CreateFeedbackSetRequest,
   CreateFeedbackSetResponse,
+  GetAnalysisRunBundleRequest,
+  GetAnalysisRunBundleResponse,
   GetAnalysisRunRequest,
   GetAnalysisRunResponse,
+  RunDemoAnalysisRequest,
+  RunDemoAnalysisResponse,
   SynthesizeFeedbackSetRequest,
   SynthesizeFeedbackSetResponse,
 } from "@/lib/types/api"
@@ -46,8 +52,39 @@ type MockFeedbackSetRecord = {
 
 const feedbackSetStore = new Map<string, MockFeedbackSetRecord>()
 const analysisRunStore = new Map<string, GetAnalysisRunResponse>()
+const analysisRunBundleStore = new Map<string, GetAnalysisRunBundleResponse>()
+const analysisRunModeStore = new Map<string, "mock" | "backend">()
+
+const BACKEND_DEMO_PRODUCT_IDS: Record<
+  BuildDemoReviewStateRequest["demoProductId"],
+  string
+> = {
+  fitness: "fitness_app",
+  crm: "crm_tool",
+  productivity: "productivity_tool",
+}
 
 export async function createFeedbackSet(
+  input: CreateFeedbackSetRequest,
+): Promise<CreateFeedbackSetResponse> {
+  return createMockFeedbackSet(input)
+}
+
+export async function runDemoAnalysis(
+  input: RunDemoAnalysisRequest,
+): Promise<RunDemoAnalysisResponse> {
+  if (isBackendDemoEnabled()) {
+    try {
+      return await runBackendDemoAnalysis(input)
+    } catch (error) {
+      console.error("Backend demo analysis failed, falling back to mocks.", error)
+    }
+  }
+
+  return runMockDemoAnalysis(input)
+}
+
+async function createMockFeedbackSet(
   input: CreateFeedbackSetRequest,
 ): Promise<CreateFeedbackSetResponse> {
   await delay(120)
@@ -155,6 +192,52 @@ export async function addXSource(
 export async function synthesizeFeedbackSet(
   input: SynthesizeFeedbackSetRequest,
 ): Promise<SynthesizeFeedbackSetResponse> {
+  return synthesizeMockFeedbackSet(input)
+}
+
+export async function getAnalysisRunBundle(
+  request: GetAnalysisRunBundleRequest,
+): Promise<GetAnalysisRunBundleResponse> {
+  const runMode = analysisRunModeStore.get(request.analysisRunId)
+  const cachedBundle = analysisRunBundleStore.get(request.analysisRunId)
+
+  if (runMode === "backend") {
+    if (isBackendDemoEnabled()) {
+      try {
+        const bundle = await fetchBackendBundle(request.analysisRunId)
+        analysisRunBundleStore.set(request.analysisRunId, bundle)
+        return bundle
+      } catch (error) {
+        if (cachedBundle) {
+          console.error(
+            "Backend bundle refresh failed, using cached bundle instead.",
+            error,
+          )
+          return cachedBundle
+        }
+        throw error
+      }
+    }
+
+    if (cachedBundle) {
+      return cachedBundle
+    }
+  }
+
+  const record = analysisRunStore.get(request.analysisRunId)
+  if (!record) {
+    throw new Error("Analysis run not found.")
+  }
+
+  const bundle = buildMockBundle(request.analysisRunId)
+  analysisRunBundleStore.set(request.analysisRunId, bundle)
+  analysisRunModeStore.set(request.analysisRunId, "mock")
+  return bundle
+}
+
+async function synthesizeMockFeedbackSet(
+  input: SynthesizeFeedbackSetRequest,
+): Promise<SynthesizeFeedbackSetResponse> {
   await delay(150)
 
   const record = feedbackSetStore.get(input.feedbackSetId)
@@ -190,6 +273,8 @@ export async function synthesizeFeedbackSet(
 
   const dashboard = buildDashboardPayload(analysisRun.id)
   analysisRunStore.set(analysisRun.id, { analysisRun, dashboard })
+  analysisRunBundleStore.set(analysisRun.id, buildMockBundle(analysisRun.id))
+  analysisRunModeStore.set(analysisRun.id, "mock")
 
   record.feedbackSet.status = "completed"
   record.feedbackSet.updatedAt = now()
@@ -200,15 +285,168 @@ export async function synthesizeFeedbackSet(
 export async function getAnalysisRun(
   request: GetAnalysisRunRequest,
 ): Promise<GetAnalysisRunResponse> {
-  await delay(100)
-  const result = analysisRunStore.get(request.analysisRunId)
-  if (!result) {
-    throw new Error("Analysis run not found.")
+  const bundle = await getAnalysisRunBundle({
+    analysisRunId: request.analysisRunId,
+  })
+
+  if (!bundle.dashboard) {
+    throw new Error(
+      bundle.placeholderMessage ?? "Analysis dashboard is not available yet.",
+    )
   }
-  return result
+
+  return {
+    analysisRun: bundle.analysisRun,
+    dashboard: bundle.dashboard,
+  }
 }
 
 export async function askAnalysisQuestion(
+  request: AskAnalysisQuestionRequest,
+): Promise<AskAnalysisQuestionResponse> {
+  const runMode = analysisRunModeStore.get(request.analysisRunId)
+
+  if (runMode === "backend" && isBackendDemoEnabled()) {
+    try {
+      const response = await backendRequest<AskAnalysisQuestionResponse & {
+        userMessage?: GetAnalysisRunBundleResponse["chatHistory"][number]
+        assistantMessage?: GetAnalysisRunBundleResponse["chatHistory"][number]
+      }>(`/analysis-runs/${request.analysisRunId}/chat`, {
+        method: "POST",
+        body: JSON.stringify({
+          question: request.question,
+          scope: request.scope,
+        }),
+      })
+
+      const cachedBundle = analysisRunBundleStore.get(request.analysisRunId)
+      if (cachedBundle) {
+        const nextChatHistory = [...cachedBundle.chatHistory]
+        if (response.userMessage) {
+          nextChatHistory.push(response.userMessage)
+        }
+        if (response.assistantMessage) {
+          nextChatHistory.push(response.assistantMessage)
+        }
+        analysisRunBundleStore.set(request.analysisRunId, {
+          ...cachedBundle,
+          chatHistory: nextChatHistory,
+        })
+      }
+
+      return {
+        answer: response.answer,
+        scopeUsed: response.scopeUsed,
+        evidence: response.evidence,
+        followUpSuggestions: response.followUpSuggestions,
+      }
+    } catch (error) {
+      console.error("Backend demo chat failed, falling back to mock chat.", error)
+    }
+  }
+
+  return askMockAnalysisQuestion(request)
+}
+
+async function runBackendDemoAnalysis(
+  input: RunDemoAnalysisRequest,
+): Promise<RunDemoAnalysisResponse> {
+  const createResponse = await backendRequest<{
+    analysisTarget: AnalysisTarget
+    feedbackSet: FeedbackSet
+  }>("/feedback-sets", {
+    method: "POST",
+    body: JSON.stringify({
+      analysisTarget: input.analysisTarget,
+      analysisGoal: input.analysisGoal,
+    }),
+  })
+
+  await backendRequest<AddDemoSourceResponse>(
+    `/feedback-sets/${createResponse.feedbackSet.id}/sources/demo`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        demoProductId: BACKEND_DEMO_PRODUCT_IDS[input.demoProductId],
+      }),
+    },
+  )
+
+  const synthesizeResponse = await backendRequest<{
+    analysisRun: { id: string }
+  }>(`/feedback-sets/${createResponse.feedbackSet.id}/synthesize`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  })
+
+  const bundle = await fetchBackendBundle(synthesizeResponse.analysisRun.id)
+  analysisRunModeStore.set(bundle.analysisRun.id, "backend")
+  analysisRunBundleStore.set(bundle.analysisRun.id, bundle)
+
+  return {
+    analysisRun: bundle.analysisRun,
+    bundle,
+  }
+}
+
+async function runMockDemoAnalysis(
+  input: RunDemoAnalysisRequest,
+): Promise<RunDemoAnalysisResponse> {
+  const { feedbackSet } = await createMockFeedbackSet({
+    analysisTarget: input.analysisTarget,
+    analysisGoal: input.analysisGoal,
+  })
+
+  await addDemoSource({
+    feedbackSetId: feedbackSet.id,
+    demoProductId: input.demoProductId,
+  })
+
+  const synthesizeResponse = await synthesizeMockFeedbackSet({
+    feedbackSetId: feedbackSet.id,
+  })
+  const bundle = buildMockBundle(synthesizeResponse.analysisRun.id)
+
+  return {
+    analysisRun: synthesizeResponse.analysisRun,
+    bundle,
+  }
+}
+
+async function fetchBackendBundle(
+  analysisRunId: string,
+): Promise<GetAnalysisRunBundleResponse> {
+  const bundle = await backendRequest<Parameters<typeof mapBackendBundleResponse>[0]>(
+    `/analysis-runs/${analysisRunId}/bundle`,
+  )
+  return mapBackendBundleResponse(bundle)
+}
+
+function buildMockBundle(
+  analysisRunId: string,
+): GetAnalysisRunBundleResponse {
+  const runRecord = analysisRunStore.get(analysisRunId)
+  if (!runRecord) {
+    throw new Error("Analysis run not found.")
+  }
+
+  const feedbackRecord = feedbackSetStore.get(runRecord.analysisRun.feedbackSetId)
+  if (!feedbackRecord) {
+    throw new Error("Feedback set not found.")
+  }
+
+  return {
+    analysisRun: runRecord.analysisRun,
+    feedbackSet: feedbackRecord.feedbackSet,
+    analysisTarget: feedbackRecord.analysisTarget,
+    sources: feedbackRecord.sources,
+    dashboard: runRecord.dashboard,
+    chatHistory: [],
+    placeholderMessage: null,
+  }
+}
+
+async function askMockAnalysisQuestion(
   request: AskAnalysisQuestionRequest,
 ): Promise<AskAnalysisQuestionResponse> {
   await delay(250)

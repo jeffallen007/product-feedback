@@ -34,13 +34,23 @@ function toAssistantMessage(response: ChatResponse): ChatMessage {
   }
 }
 
-export function ChatPanel({ analysisRunId }: { analysisRunId: string }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+export function ChatPanel({
+  analysisRunId,
+  initialMessages = [],
+}: {
+  analysisRunId: string
+  initialMessages?: ChatMessage[]
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [input, setInput] = useState("")
   const [scope, setScope] = useState<ChatRequest["scope"]>("all")
   const [thinking, setThinking] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setMessages(initialMessages)
+  }, [analysisRunId, initialMessages])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({

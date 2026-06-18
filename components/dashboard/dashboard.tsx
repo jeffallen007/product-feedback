@@ -21,11 +21,12 @@ import {
   DASHBOARD_ALERTS,
   DASHBOARD_SOURCE_FILTER_TO_TYPE,
   DASHBOARD_SOURCE_TABS,
+  type ChatMessage,
   type AnalysisSourceKey,
 } from "@/lib/mocks/dashboard"
+import type { ChatScope, DashboardPayload } from "@/lib/types/contracts"
 import type { SourceTag } from "@/lib/types/workflow"
-import type { DashboardPayload } from "@/lib/types/contracts"
-import { getAnalysisRun } from "@/lib/services/analysis-service"
+import { getAnalysisRunBundle } from "@/lib/services/analysis-service"
 import {
   Plus,
   Sparkles,
@@ -40,6 +41,21 @@ import {
   Loader2,
 } from "lucide-react"
 
+function toScopeLabel(scope: ChatScope): string {
+  switch (scope) {
+    case "demo_dataset":
+      return "Demo Dataset"
+    case "csv_upload":
+      return "CSV Upload"
+    case "pasted_text":
+      return "Pasted Feedback"
+    case "x_search":
+      return "X Search"
+    default:
+      return "All Sources"
+  }
+}
+
 export function Dashboard({
   analysisRunId,
   onNewAnalysis,
@@ -50,6 +66,7 @@ export function Dashboard({
   const [activeSource, setActiveSource] = useState<AnalysisSourceKey>("all")
   const [chatOpen, setChatOpen] = useState(false)
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -61,9 +78,34 @@ export function Dashboard({
       setErrorMessage(null)
 
       try {
-        const result = await getAnalysisRun({ analysisRunId })
+        const result = await getAnalysisRunBundle({ analysisRunId })
         if (!cancelled) {
+          if (!result.dashboard) {
+            setDashboard(null)
+            setErrorMessage(
+              result.placeholderMessage ??
+                "The analysis dashboard is not available yet.",
+            )
+            setChatHistory([])
+            return
+          }
+
           setDashboard(result.dashboard)
+          setChatHistory(
+            result.chatHistory.map((message) =>
+              message.role === "user"
+                ? {
+                    role: "user",
+                    content: message.question ?? "",
+                    scope: toScopeLabel(message.scope),
+                  }
+                : {
+                    role: "assistant",
+                    content: message.answer ?? "",
+                    followUps: message.followUpSuggestions,
+                  },
+            ),
+          )
         }
       } catch (error) {
         if (!cancelled) {
@@ -359,7 +401,7 @@ export function Dashboard({
 
         {/* Desktop chat panel */}
         <aside className="sticky top-[57px] hidden h-[calc(100svh-57px)] w-[380px] shrink-0 border-l border-border bg-card lg:block">
-          <ChatPanel analysisRunId={analysisRunId} />
+          <ChatPanel analysisRunId={analysisRunId} initialMessages={chatHistory} />
         </aside>
       </div>
 
@@ -393,7 +435,7 @@ export function Dashboard({
               </Button>
             </div>
             <div className="min-h-0 flex-1">
-              <ChatPanel analysisRunId={analysisRunId} />
+              <ChatPanel analysisRunId={analysisRunId} initialMessages={chatHistory} />
             </div>
           </div>
         </div>

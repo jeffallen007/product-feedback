@@ -1,0 +1,50 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim() ?? ""
+const USE_BACKEND_DEMO = process.env.NEXT_PUBLIC_USE_BACKEND_DEMO === "true"
+
+export class BackendRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "BackendRequestError"
+  }
+}
+
+export function isBackendDemoEnabled(): boolean {
+  return USE_BACKEND_DEMO && API_BASE_URL.length > 0
+}
+
+export async function backendRequest<TResponse>(
+  path: string,
+  init?: RequestInit,
+): Promise<TResponse> {
+  if (!API_BASE_URL) {
+    throw new BackendRequestError(
+      "NEXT_PUBLIC_API_BASE_URL is not configured for backend demo mode.",
+    )
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    let message = `Backend request failed with status ${response.status}.`
+
+    try {
+      const payload = (await response.json()) as { detail?: string }
+      if (payload.detail) {
+        message = payload.detail
+      }
+    } catch {
+      // Keep the generic message when the backend response is not JSON.
+    }
+
+    throw new BackendRequestError(message)
+  }
+
+  return (await response.json()) as TResponse
+}

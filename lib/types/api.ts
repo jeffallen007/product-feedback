@@ -3,6 +3,7 @@ import type {
   AnalysisRun,
   AnalysisTarget,
   ChatResponse,
+  ChatScope,
   DashboardPayload,
   DataSource,
   FeedbackSet,
@@ -84,6 +85,32 @@ export interface GetAnalysisRunResponse {
   dashboard: DashboardPayload
 }
 
+export interface PersistedChatMessage {
+  id: string
+  analysisRunId: string
+  role: "user" | "assistant"
+  question: string | null
+  answer: string | null
+  scope: ChatScope
+  evidence: ChatResponse["evidence"]
+  followUpSuggestions: string[]
+  createdAt: string | null
+}
+
+export interface GetAnalysisRunBundleRequest {
+  analysisRunId: string
+}
+
+export interface GetAnalysisRunBundleResponse {
+  analysisRun: AnalysisRun
+  feedbackSet: FeedbackSet
+  analysisTarget: AnalysisTarget
+  sources: DataSource[]
+  dashboard: DashboardPayload | null
+  chatHistory: PersistedChatMessage[]
+  placeholderMessage?: string | null
+}
+
 export interface AskAnalysisQuestionRequest {
   analysisRunId: string
   question: string
@@ -91,6 +118,17 @@ export interface AskAnalysisQuestionRequest {
 }
 
 export interface AskAnalysisQuestionResponse extends ChatResponse {}
+
+export interface RunDemoAnalysisRequest {
+  demoProductId: DemoProductId
+  analysisTarget: Pick<AnalysisTarget, "name" | "description">
+  analysisGoal: AnalysisGoal
+}
+
+export interface RunDemoAnalysisResponse {
+  analysisRun: AnalysisRun
+  bundle: GetAnalysisRunBundleResponse
+}
 
 export interface BuildDemoReviewStateRequest {
   demoProductId: DemoProductId

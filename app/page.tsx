@@ -26,6 +26,7 @@ import {
   buildCustomReviewState,
   buildDemoReviewState,
   createFeedbackSet,
+  runDemoAnalysis,
   synthesizeFeedbackSet,
 } from "@/lib/services/analysis-service"
 
@@ -140,6 +141,26 @@ export default function Page() {
     setIsSubmitting(true)
 
     try {
+      if (path === "demo") {
+        const result = await runDemoAnalysis({
+          demoProductId: demoProduct,
+          analysisTarget: {
+            name: reviewProduct.name,
+            description: reviewProduct.description,
+          },
+          analysisGoal: goal,
+        })
+
+        setAnalysisRunId(result.analysisRun.id)
+        setProcessingSummary({
+          feedbackItemCount:
+            Number(result.analysisRun.metadata.feedbackItemCount) || 592,
+          sourceCount: Number(result.analysisRun.metadata.sourceCount) || 1,
+        })
+        setScreen("processing")
+        return
+      }
+
       const { feedbackSet } = await createFeedbackSet({
         analysisTarget: {
           name: reviewProduct.name,
@@ -202,7 +223,7 @@ export default function Page() {
       setSubmissionError(
         error instanceof Error
           ? error.message
-          : "Something went wrong while creating the mock analysis.",
+          : "Something went wrong while preparing the analysis.",
       )
     } finally {
       setIsSubmitting(false)
