@@ -34,6 +34,37 @@ This loads `apps/api/.env` automatically, so no manual `source .env` step is req
 
 The health endpoint will be available at `GET /health`.
 
+## Railway Deployment
+
+Recommended Railway service root: `apps/api`
+
+Install command:
+
+```bash
+pip install -r requirements.txt
+```
+
+Start command:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+Required env vars:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+Optional env vars:
+
+- `APP_ENV=production`
+- `FRONTEND_ORIGINS`
+  Comma-separated allowed frontend origins for CORS, for example:
+
+```bash
+FRONTEND_ORIGINS=https://your-vercel-app.vercel.app
+```
+
 ## Routes
 
 - `GET /health`
