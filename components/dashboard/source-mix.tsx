@@ -1,7 +1,7 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { SourceBadge } from "@/components/dashboard/source-badge"
+import { SourceBadge, toSourceTag } from "@/components/dashboard/source-badge"
 import type { DashboardSourceMixItem } from "@/lib/types/contracts"
 import type { SourceTag } from "@/lib/types/workflow"
 
@@ -33,7 +33,7 @@ export function SourceMix({
             key={s.sourceId}
             style={{
               width: `${s.percent}%`,
-              backgroundColor: BAR_COLOR[s.label as SourceTag],
+              backgroundColor: BAR_COLOR[toSourceTag(s.label) as SourceTag],
             }}
             aria-hidden="true"
           />
@@ -46,7 +46,10 @@ export function SourceMix({
             key={s.sourceId}
             className="rounded-lg border border-border bg-secondary/40 p-3"
           >
-            <SourceBadge source={s.label as SourceTag} />
+            <SourceBadge source={s.label} />
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              {s.label}
+            </p>
             <div className="mt-2 flex items-baseline gap-1.5">
               <span className="text-lg font-semibold tabular-nums text-foreground">
                 {s.count}

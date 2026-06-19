@@ -15,6 +15,14 @@ import type {
   WorkflowSourceId,
 } from "@/lib/types/workflow"
 
+export type AnalysisDataMode = "mock" | "backend"
+
+export interface AnalysisBundleMeta {
+  dataMode: AnalysisDataMode
+  analysisRunId?: string
+  feedbackSetId?: string
+}
+
 export interface CreateFeedbackSetRequest {
   analysisTarget: Pick<AnalysisTarget, "name" | "description">
   analysisGoal: AnalysisGoal
@@ -83,6 +91,7 @@ export interface GetAnalysisRunRequest {
 export interface GetAnalysisRunResponse {
   analysisRun: AnalysisRun
   dashboard: DashboardPayload
+  meta?: AnalysisBundleMeta
 }
 
 export interface PersistedChatMessage {
@@ -109,6 +118,7 @@ export interface GetAnalysisRunBundleResponse {
   dashboard: DashboardPayload | null
   chatHistory: PersistedChatMessage[]
   placeholderMessage?: string | null
+  meta: AnalysisBundleMeta
 }
 
 export interface AskAnalysisQuestionRequest {
@@ -128,6 +138,7 @@ export interface RunDemoAnalysisRequest {
 export interface RunDemoAnalysisResponse {
   analysisRun: AnalysisRun
   bundle: GetAnalysisRunBundleResponse
+  meta: AnalysisBundleMeta
 }
 
 export interface BuildDemoReviewStateRequest {

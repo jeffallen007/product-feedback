@@ -82,7 +82,7 @@ export function ChatPanel({
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Unable to retrieve the mock response.",
+          : "Unable to retrieve the analysis response.",
       )
     } finally {
       setThinking(false)

@@ -12,6 +12,7 @@ import type {
   GetAnalysisRunBundleResponse,
   PersistedChatMessage,
 } from "@/lib/types/api"
+import { SOURCE_TAG_BY_TYPE } from "@/lib/types/workflow"
 
 type BackendChatEvidenceItem = {
   feedbackItemId: string
@@ -71,19 +72,6 @@ type BackendBundleResponse = {
   placeholderMessage?: string | null
 }
 
-function toSourceTagLabel(sourceType: SourceType): string {
-  switch (sourceType) {
-    case "demo_dataset":
-      return "Demo Dataset"
-    case "csv_upload":
-      return "CSV Upload"
-    case "pasted_text":
-      return "Pasted Feedback"
-    case "x_search":
-      return "X Search"
-  }
-}
-
 function formatTimestamp(value: string | null): string | null {
   if (!value) return null
 
@@ -106,35 +94,13 @@ function normalizeDashboardPayload(
     ...dashboard,
     analysisContext: {
       ...dashboard.analysisContext,
-      lastRunAt: formatTimestamp(dashboard.analysisContext.lastRunAt) ?? dashboard.analysisContext.lastRunAt,
+      lastRunAt:
+        formatTimestamp(dashboard.analysisContext.lastRunAt) ??
+        dashboard.analysisContext.lastRunAt,
     },
     sourceMix: dashboard.sourceMix.map((source) => ({
       ...source,
-      label: toSourceTagLabel(source.sourceType),
-    })),
-    sentimentBreakdown: {
-      ...dashboard.sentimentBreakdown,
-      bySource: dashboard.sentimentBreakdown.bySource.map((item) => ({
-        ...item,
-        sourceLabel: item.sourceLabel.includes("Demo Dataset")
-          ? "Demo Dataset"
-          : item.sourceLabel,
-      })),
-    },
-    painPoints: dashboard.painPoints.map((painPoint) => ({
-      ...painPoint,
-      representativeQuotes: painPoint.representativeQuotes.map((quote) => ({
-        ...quote,
-        sourceLabel: quote.sourceLabel.includes("Demo Dataset")
-          ? "Demo Dataset"
-          : quote.sourceLabel,
-      })),
-    })),
-    representativeQuotes: dashboard.representativeQuotes.map((quote) => ({
-      ...quote,
-      sourceLabel: quote.sourceLabel.includes("Demo Dataset")
-        ? "Demo Dataset"
-        : quote.sourceLabel,
+      label: source.label || SOURCE_TAG_BY_TYPE[source.sourceType],
     })),
   }
 }
@@ -188,5 +154,10 @@ export function mapBackendBundleResponse(
     dashboard,
     chatHistory: input.chatHistory.map(mapChatMessage),
     placeholderMessage: input.placeholderMessage ?? null,
+    meta: {
+      dataMode: "backend",
+      analysisRunId: input.analysisRun.id,
+      feedbackSetId: input.feedbackSet.id,
+    },
   }
 }

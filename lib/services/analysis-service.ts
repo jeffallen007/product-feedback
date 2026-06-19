@@ -7,6 +7,7 @@ import { DEMO_PRODUCTS } from "@/lib/mocks/workflow"
 import { isBackendDemoEnabled, backendRequest } from "@/lib/services/backend-client"
 import { mapBackendBundleResponse } from "@/lib/services/backend-mappers"
 import type {
+  AnalysisBundleMeta,
   AddCsvSourceRequest,
   AddCsvSourceResponse,
   AddDemoSourceRequest,
@@ -77,11 +78,34 @@ export async function runDemoAnalysis(
     try {
       return await runBackendDemoAnalysis(input)
     } catch (error) {
-      console.error("Backend demo analysis failed, falling back to mocks.", error)
+      logBackendFallback(
+        "Run demo analysis failed, falling back to the mock demo flow.",
+        error,
+      )
     }
   }
 
   return runMockDemoAnalysis(input)
+}
+
+function logBackendFallback(context: string, error: unknown) {
+  if (process.env.NODE_ENV !== "development") {
+    return
+  }
+
+  console.error(`[backend-demo] ${context}`, error)
+}
+
+function createBundleMeta(
+  dataMode: "mock" | "backend",
+  analysisRunId?: string,
+  feedbackSetId?: string,
+): AnalysisBundleMeta {
+  return {
+    dataMode,
+    analysisRunId,
+    feedbackSetId,
+  }
 }
 
 async function createMockFeedbackSet(
@@ -209,13 +233,17 @@ export async function getAnalysisRunBundle(
         return bundle
       } catch (error) {
         if (cachedBundle) {
-          console.error(
-            "Backend bundle refresh failed, using cached bundle instead.",
+          logBackendFallback(
+            "Bundle refresh failed, using the cached backend bundle instead.",
             error,
           )
           return cachedBundle
         }
-        throw error
+
+        logBackendFallback(
+          "Bundle refresh failed with no cached backend bundle available.",
+          error,
+        )
       }
     }
 
@@ -298,6 +326,7 @@ export async function getAnalysisRun(
   return {
     analysisRun: bundle.analysisRun,
     dashboard: bundle.dashboard,
+    meta: bundle.meta,
   }
 }
 
@@ -341,7 +370,10 @@ export async function askAnalysisQuestion(
         followUpSuggestions: response.followUpSuggestions,
       }
     } catch (error) {
-      console.error("Backend demo chat failed, falling back to mock chat.", error)
+      logBackendFallback(
+        "Backend chat failed, falling back to the mock assistant response.",
+        error,
+      )
     }
   }
 
@@ -386,6 +418,7 @@ async function runBackendDemoAnalysis(
   return {
     analysisRun: bundle.analysisRun,
     bundle,
+    meta: bundle.meta,
   }
 }
 
@@ -410,6 +443,7 @@ async function runMockDemoAnalysis(
   return {
     analysisRun: synthesizeResponse.analysisRun,
     bundle,
+    meta: bundle.meta,
   }
 }
 
@@ -443,6 +477,11 @@ function buildMockBundle(
     dashboard: runRecord.dashboard,
     chatHistory: [],
     placeholderMessage: null,
+    meta: createBundleMeta(
+      "mock",
+      runRecord.analysisRun.id,
+      feedbackRecord.feedbackSet.id,
+    ),
   }
 }
 

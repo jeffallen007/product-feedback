@@ -2,7 +2,6 @@ import { Card } from "@/components/ui/card"
 import { SourceBadge } from "@/components/dashboard/source-badge"
 import { Quote, Search, Users2, Smartphone, MessageSquare } from "lucide-react"
 import type { DashboardPayload } from "@/lib/types/contracts"
-import type { SourceTag } from "@/lib/types/workflow"
 
 const MODEL_SIGNAL_ICONS = [Search, Users2, Smartphone, MessageSquare]
 
@@ -34,7 +33,8 @@ export function RepresentativeQuotes({
               {q.text}
             </blockquote>
             <figcaption className="mt-3 flex flex-wrap items-center gap-2">
-              <SourceBadge source={q.sourceLabel as SourceTag} />
+              <SourceBadge source={q.sourceLabel} />
+              <span className="text-xs text-muted-foreground">{q.sourceLabel}</span>
               <span className="text-xs text-muted-foreground">{q.themeName}</span>
             </figcaption>
           </figure>

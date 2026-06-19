@@ -15,22 +15,36 @@ const ICONS = {
   "CSV Upload": Upload,
 }
 
+export function toSourceTag(value: string): SourceTag {
+  if (value in STYLES) {
+    return value as SourceTag
+  }
+
+  const normalized = value.toLowerCase()
+
+  if (normalized.includes("demo")) return "Demo Dataset"
+  if (normalized.includes("csv")) return "CSV Upload"
+  if (normalized.includes("paste")) return "Pasted Feedback"
+  return "X Search"
+}
+
 export function SourceBadge({
   source,
   showIcon = true,
   className = "",
 }: {
-  source: SourceTag
+  source: SourceTag | string
   showIcon?: boolean
   className?: string
 }) {
-  const Icon = ICONS[source]
+  const sourceTag = toSourceTag(source)
+  const Icon = ICONS[sourceTag]
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${STYLES[source]} ${className}`}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${STYLES[sourceTag]} ${className}`}
     >
       {showIcon && <Icon className="size-3" aria-hidden="true" />}
-      {source}
+      {sourceTag}
     </span>
   )
 }

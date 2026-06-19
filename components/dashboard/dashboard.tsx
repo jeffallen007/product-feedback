@@ -24,8 +24,9 @@ import {
   type ChatMessage,
   type AnalysisSourceKey,
 } from "@/lib/mocks/dashboard"
+import type { GetAnalysisRunBundleResponse } from "@/lib/types/api"
 import type { ChatScope, DashboardPayload } from "@/lib/types/contracts"
-import type { SourceTag } from "@/lib/types/workflow"
+import { SOURCE_TAG_BY_TYPE, type SourceTag } from "@/lib/types/workflow"
 import { getAnalysisRunBundle } from "@/lib/services/analysis-service"
 import {
   Plus,
@@ -65,6 +66,7 @@ export function Dashboard({
 }) {
   const [activeSource, setActiveSource] = useState<AnalysisSourceKey>("all")
   const [chatOpen, setChatOpen] = useState(false)
+  const [bundle, setBundle] = useState<GetAnalysisRunBundleResponse | null>(null)
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -80,6 +82,7 @@ export function Dashboard({
       try {
         const result = await getAnalysisRunBundle({ analysisRunId })
         if (!cancelled) {
+          setBundle(result)
           if (!result.dashboard) {
             setDashboard(null)
             setErrorMessage(
@@ -109,10 +112,11 @@ export function Dashboard({
         }
       } catch (error) {
         if (!cancelled) {
+          setBundle(null)
           setErrorMessage(
             error instanceof Error
               ? error.message
-              : "Unable to load the mock analysis run.",
+              : "Unable to load the analysis run.",
           )
         }
       } finally {
@@ -173,7 +177,7 @@ export function Dashboard({
                 Loading analysis dashboard
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Preparing the mock analysis payload.
+                Preparing the analysis payload.
               </p>
             </div>
           </Card>
@@ -182,27 +186,50 @@ export function Dashboard({
     )
   }
 
-  const sourceTags = dashboard.sourceMix.map((source) => source.label as SourceTag)
+  const analysisTarget = bundle?.analysisTarget
+  const feedbackSet = bundle?.feedbackSet
+  const sources = bundle?.sources ?? []
+  const analysisRun = bundle?.analysisRun
+  const dataMode = bundle?.meta.dataMode ?? "mock"
+  const sourceTags = [
+    ...new Set(sources.map((source) => SOURCE_TAG_BY_TYPE[source.sourceType])),
+  ] as SourceTag[]
+  const totalFeedbackCount =
+    feedbackSet?.totalFeedbackCount ?? dashboard.analysisContext.feedbackItemCount
+  const sourceCount = sources.length || dashboard.analysisContext.sourceCount
+  const analysisGoal = feedbackSet?.analysisGoal ?? dashboard.analysisContext.goal
+  const runTimestamp =
+    analysisRun?.completedAt ??
+    analysisRun?.startedAt ??
+    dashboard.analysisContext.lastRunAt
+  const parsedRunTimestamp = new Date(runTimestamp)
+  const formattedRunTimestamp = Number.isNaN(parsedRunTimestamp.getTime())
+    ? runTimestamp
+    : parsedRunTimestamp.toLocaleString()
+  const activeSourceTag =
+    activeSource === "all"
+      ? "All Sources"
+      : SOURCE_TAG_BY_TYPE[DASHBOARD_SOURCE_FILTER_TO_TYPE[activeSource]]
   const contextItems = [
     {
       icon: Target,
       label: "Analysis Target",
-      value: dashboard.analysisContext.productName,
+      value: analysisTarget?.name ?? dashboard.analysisContext.productName,
     },
     {
       icon: Layers,
       label: "Sources Included",
-      value: String(dashboard.analysisContext.sourceCount),
+      value: String(sourceCount),
     },
     {
       icon: ListChecks,
       label: "Feedback Items",
-      value: String(dashboard.analysisContext.feedbackItemCount),
+      value: String(totalFeedbackCount),
     },
     {
       icon: Clock,
       label: "Last Run",
-      value: dashboard.analysisContext.lastRunAt,
+      value: formattedRunTimestamp,
     },
   ]
 
@@ -232,10 +259,12 @@ export function Dashboard({
           {/* Page title + badges */}
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground text-balance">
-              {dashboard.analysisContext.productName} Feedback Analysis
+              {analysisTarget?.name ?? dashboard.analysisContext.productName} Feedback
+              {" "}Analysis
             </h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              {dashboard.analysisContext.productDescription}
+              {analysisTarget?.description ??
+                dashboard.analysisContext.productDescription}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {sourceTags.map((source) => (
@@ -243,9 +272,14 @@ export function Dashboard({
               ))}
               <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/25 bg-accent/40 px-2 py-0.5 text-xs font-medium text-primary">
                 <Sparkles className="size-3" aria-hidden="true" />
-                {dashboard.analysisContext.goal}
+                {analysisGoal}
               </span>
             </div>
+            {sources.length > 0 && (
+              <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+                {sources.map((source) => source.sourceLabel).join(" • ")}
+              </p>
+            )}
           </div>
 
           {/* Analysis Context panel */}
@@ -270,7 +304,7 @@ export function Dashboard({
                 )
               })}
             </div>
-            <div className="mt-4 flex items-center gap-2 border-t border-border pt-3">
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3">
               <Cpu
                 className="size-3.5 shrink-0 text-muted-foreground"
                 aria-hidden="true"
@@ -280,6 +314,14 @@ export function Dashboard({
                   Processing Method:
                 </span>{" "}
                 {dashboard.analysisContext.processingMethod}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <span className="text-muted-foreground/70">Run Status:</span>{" "}
+                {analysisRun?.status ?? "completed"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <span className="text-muted-foreground/70">Data Mode:</span>{" "}
+                {dataMode === "backend" ? "Backend demo" : "Mock demo"}
               </p>
             </div>
           </Card>
@@ -302,7 +344,7 @@ export function Dashboard({
           <div className="mb-6">
             <SourceMix
               items={dashboard.sourceMix}
-              totalFeedbackItems={dashboard.analysisContext.feedbackItemCount}
+              totalFeedbackItems={totalFeedbackCount}
             />
           </div>
 
@@ -338,11 +380,12 @@ export function Dashboard({
                 />
               </span>
               <p className="mt-3 text-sm font-medium text-foreground">
-                No feedback from CSV Upload
+                No feedback from {activeSourceTag}
               </p>
               <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-                This feedback set does not include a CSV Upload source. Add one
-                from a new analysis, or switch back to a source with data.
+                This feedback set does not include a {activeSourceTag} source.
+                Start a new analysis to add one, or switch back to a source with
+                data.
               </p>
               <Button
                 variant="outline"

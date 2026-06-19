@@ -154,8 +154,13 @@ export default function Page() {
         setAnalysisRunId(result.analysisRun.id)
         setProcessingSummary({
           feedbackItemCount:
-            Number(result.analysisRun.metadata.feedbackItemCount) || 592,
-          sourceCount: Number(result.analysisRun.metadata.sourceCount) || 1,
+            result.bundle.feedbackSet.totalFeedbackCount ||
+            Number(result.analysisRun.metadata.feedbackItemCount) ||
+            592,
+          sourceCount:
+            result.bundle.sources.length ||
+            Number(result.analysisRun.metadata.sourceCount) ||
+            1,
         })
         setScreen("processing")
         return

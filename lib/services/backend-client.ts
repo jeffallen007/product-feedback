@@ -22,14 +22,24 @@ export async function backendRequest<TResponse>(
     )
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    })
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unable to reach the backend demo service."
+    throw new BackendRequestError(message)
+  }
 
   if (!response.ok) {
     let message = `Backend request failed with status ${response.status}.`
