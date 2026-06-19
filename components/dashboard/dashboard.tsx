@@ -24,8 +24,11 @@ import {
   type ChatMessage,
   type AnalysisSourceKey,
 } from "@/lib/mocks/dashboard"
-import type { GetAnalysisRunBundleResponse } from "@/lib/types/api"
 import type { ChatScope, DashboardPayload } from "@/lib/types/contracts"
+import {
+  adaptBackendBundleToDashboard,
+  type BackendDashboardViewModel,
+} from "@/lib/services/bundle-dashboard-adapter"
 import { SOURCE_TAG_BY_TYPE, type SourceTag } from "@/lib/types/workflow"
 import { getAnalysisRunBundle } from "@/lib/services/analysis-service"
 import {
@@ -66,7 +69,8 @@ export function Dashboard({
 }) {
   const [activeSource, setActiveSource] = useState<AnalysisSourceKey>("all")
   const [chatOpen, setChatOpen] = useState(false)
-  const [bundle, setBundle] = useState<GetAnalysisRunBundleResponse | null>(null)
+  const [backendView, setBackendView] =
+    useState<BackendDashboardViewModel | null>(null)
   const [dashboard, setDashboard] = useState<DashboardPayload | null>(null)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -82,7 +86,15 @@ export function Dashboard({
       try {
         const result = await getAnalysisRunBundle({ analysisRunId })
         if (!cancelled) {
-          setBundle(result)
+          if (result.meta.dataMode === "backend") {
+            const adapted = adaptBackendBundleToDashboard(result)
+            setBackendView(adapted)
+            setDashboard(adapted.dashboard)
+            setChatHistory(adapted.chatHistory)
+            return
+          }
+
+          setBackendView(null)
           if (!result.dashboard) {
             setDashboard(null)
             setErrorMessage(
@@ -112,7 +124,7 @@ export function Dashboard({
         }
       } catch (error) {
         if (!cancelled) {
-          setBundle(null)
+          setBackendView(null)
           setErrorMessage(
             error instanceof Error
               ? error.message
@@ -186,26 +198,10 @@ export function Dashboard({
     )
   }
 
-  const analysisTarget = bundle?.analysisTarget
-  const feedbackSet = bundle?.feedbackSet
-  const sources = bundle?.sources ?? []
-  const analysisRun = bundle?.analysisRun
-  const dataMode = bundle?.meta.dataMode ?? "mock"
-  const sourceTags = [
-    ...new Set(sources.map((source) => SOURCE_TAG_BY_TYPE[source.sourceType])),
-  ] as SourceTag[]
-  const totalFeedbackCount =
-    feedbackSet?.totalFeedbackCount ?? dashboard.analysisContext.feedbackItemCount
-  const sourceCount = sources.length || dashboard.analysisContext.sourceCount
-  const analysisGoal = feedbackSet?.analysisGoal ?? dashboard.analysisContext.goal
-  const runTimestamp =
-    analysisRun?.completedAt ??
-    analysisRun?.startedAt ??
-    dashboard.analysisContext.lastRunAt
-  const parsedRunTimestamp = new Date(runTimestamp)
-  const formattedRunTimestamp = Number.isNaN(parsedRunTimestamp.getTime())
-    ? runTimestamp
-    : parsedRunTimestamp.toLocaleString()
+  const sourceTags =
+    backendView?.sourceTags ??
+    (dashboard.sourceMix.map((source) => source.label) as SourceTag[])
+  const dataMode = backendView?.dataMode ?? "mock"
   const activeSourceTag =
     activeSource === "all"
       ? "All Sources"
@@ -214,22 +210,26 @@ export function Dashboard({
     {
       icon: Target,
       label: "Analysis Target",
-      value: analysisTarget?.name ?? dashboard.analysisContext.productName,
+      value: backendView?.analysisTargetName ?? dashboard.analysisContext.productName,
     },
     {
       icon: Layers,
       label: "Sources Included",
-      value: String(sourceCount),
+      value: String(
+        backendView?.sourceCount ?? dashboard.analysisContext.sourceCount,
+      ),
     },
     {
       icon: ListChecks,
       label: "Feedback Items",
-      value: String(totalFeedbackCount),
+      value: String(
+        backendView?.totalFeedbackCount ?? dashboard.analysisContext.feedbackItemCount,
+      ),
     },
     {
       icon: Clock,
       label: "Last Run",
-      value: formattedRunTimestamp,
+      value: backendView?.runTimestamp ?? dashboard.analysisContext.lastRunAt,
     },
   ]
 
@@ -259,11 +259,11 @@ export function Dashboard({
           {/* Page title + badges */}
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground text-balance">
-              {analysisTarget?.name ?? dashboard.analysisContext.productName} Feedback
-              {" "}Analysis
+              {backendView?.analysisTargetName ?? dashboard.analysisContext.productName}{" "}
+              Feedback Analysis
             </h1>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              {analysisTarget?.description ??
+              {backendView?.analysisTargetDescription ??
                 dashboard.analysisContext.productDescription}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -272,12 +272,12 @@ export function Dashboard({
               ))}
               <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/25 bg-accent/40 px-2 py-0.5 text-xs font-medium text-primary">
                 <Sparkles className="size-3" aria-hidden="true" />
-                {analysisGoal}
+                {backendView?.analysisGoal ?? dashboard.analysisContext.goal}
               </span>
             </div>
-            {sources.length > 0 && (
+            {backendView && backendView.sourceLabels.length > 0 && (
               <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-                {sources.map((source) => source.sourceLabel).join(" • ")}
+                {backendView.sourceLabels.join(" • ")}
               </p>
             )}
           </div>
@@ -317,7 +317,7 @@ export function Dashboard({
               </p>
               <p className="text-xs text-muted-foreground">
                 <span className="text-muted-foreground/70">Run Status:</span>{" "}
-                {analysisRun?.status ?? "completed"}
+                {backendView?.runStatus ?? "completed"}
               </p>
               <p className="text-xs text-muted-foreground">
                 <span className="text-muted-foreground/70">Data Mode:</span>{" "}
@@ -344,7 +344,10 @@ export function Dashboard({
           <div className="mb-6">
             <SourceMix
               items={dashboard.sourceMix}
-              totalFeedbackItems={totalFeedbackCount}
+              totalFeedbackItems={
+                backendView?.totalFeedbackCount ??
+                dashboard.analysisContext.feedbackItemCount
+              }
             />
           </div>
 

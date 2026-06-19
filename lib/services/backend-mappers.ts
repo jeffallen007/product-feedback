@@ -12,7 +12,6 @@ import type {
   GetAnalysisRunBundleResponse,
   PersistedChatMessage,
 } from "@/lib/types/api"
-import { SOURCE_TAG_BY_TYPE } from "@/lib/types/workflow"
 
 type BackendChatEvidenceItem = {
   feedbackItemId: string
@@ -72,39 +71,6 @@ type BackendBundleResponse = {
   placeholderMessage?: string | null
 }
 
-function formatTimestamp(value: string | null): string | null {
-  if (!value) return null
-
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return value
-  }
-
-  return parsed.toLocaleString()
-}
-
-function normalizeDashboardPayload(
-  dashboard: DashboardPayload | null,
-): DashboardPayload | null {
-  if (!dashboard) {
-    return null
-  }
-
-  return {
-    ...dashboard,
-    analysisContext: {
-      ...dashboard.analysisContext,
-      lastRunAt:
-        formatTimestamp(dashboard.analysisContext.lastRunAt) ??
-        dashboard.analysisContext.lastRunAt,
-    },
-    sourceMix: dashboard.sourceMix.map((source) => ({
-      ...source,
-      label: source.label || SOURCE_TAG_BY_TYPE[source.sourceType],
-    })),
-  }
-}
-
 function mapChatMessage(message: BackendChatMessage): PersistedChatMessage {
   return {
     id: message.id,
@@ -128,7 +94,6 @@ function mapChatMessage(message: BackendChatMessage): PersistedChatMessage {
 export function mapBackendBundleResponse(
   input: BackendBundleResponse,
 ): GetAnalysisRunBundleResponse {
-  const dashboard = normalizeDashboardPayload(input.dashboard)
   const metadata = input.analysisRun.metadata
   const totalFeedbackCount =
     typeof metadata.total_feedback_count === "number"
@@ -151,7 +116,7 @@ export function mapBackendBundleResponse(
     feedbackSet: input.feedbackSet,
     analysisTarget: input.analysisTarget,
     sources: input.sources,
-    dashboard,
+    dashboard: input.dashboard,
     chatHistory: input.chatHistory.map(mapChatMessage),
     placeholderMessage: input.placeholderMessage ?? null,
     meta: {
