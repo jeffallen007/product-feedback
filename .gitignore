@@ -8,3 +8,6 @@ __pycache__/
 node_modules/
 .next/
 tsconfig.tsbuildinfo
+
+# macOS
+.DS_Store
