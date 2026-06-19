@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Depends, status
+from typing import Any
+
+from fastapi import APIRouter, Body, Depends, status
 
 from app.api.dependencies import get_analysis_run_service
+from app.api.request_parsing import parse_request_model
 from app.schemas.analysis_runs import (
     AnalysisRunBundleResponse,
     GetAnalysisRunResponse,
@@ -24,9 +27,10 @@ router = APIRouter(tags=["analysis-runs"])
 )
 def synthesize_feedback_set(
     feedback_set_id: str,
-    request: SynthesizeFeedbackSetRequest,
+    payload: dict[str, Any] = Body(...),
     service: AnalysisRunService = Depends(get_analysis_run_service),
 ) -> SynthesizeFeedbackSetResponse:
+    request = parse_request_model(payload, SynthesizeFeedbackSetRequest)
     return service.create_placeholder_run(feedback_set_id, request)
 
 
@@ -48,9 +52,10 @@ def get_analysis_run(
 )
 def ask_analysis_question(
     analysis_run_id: str,
-    request: AskAnalysisQuestionRequest,
+    payload: dict[str, Any] = Body(...),
     service: AnalysisRunService = Depends(get_analysis_run_service),
 ) -> AskAnalysisQuestionResponse:
+    request = parse_request_model(payload, AskAnalysisQuestionRequest)
     return service.ask_placeholder_question(analysis_run_id, request)
 
 

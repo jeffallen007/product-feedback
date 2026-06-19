@@ -1,25 +1,19 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
-
+from app.schemas.base import CamelModel
 from app.schemas.chat import ChatMessageResponse
 from app.schemas.feedback_sets import (
     AnalysisTargetResponse,
     DataSourceResponse,
     FeedbackSetResponse,
 )
-from app.schemas.feedback_sets import to_camel
 
 
-class SynthesizeFeedbackSetRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class SynthesizeFeedbackSetRequest(CamelModel):
     analysis_goal: str | None = None
 
 
-class AnalysisRunResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class AnalysisRunResponse(CamelModel):
     id: str
     feedback_set_id: str
     status: str
@@ -31,9 +25,7 @@ class AnalysisRunResponse(BaseModel):
     metadata: dict[str, object]
 
 
-class DashboardContextResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class DashboardContextResponse(CamelModel):
     analysis_run_id: str
     product_name: str
     product_description: str
@@ -44,9 +36,7 @@ class DashboardContextResponse(BaseModel):
     last_run_at: str
 
 
-class DashboardSourceMixItemResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class DashboardSourceMixItemResponse(CamelModel):
     source_id: str
     source_type: str
     label: str
@@ -55,38 +45,28 @@ class DashboardSourceMixItemResponse(BaseModel):
     percent: int
 
 
-class DashboardKpiResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class DashboardKpiResponse(CamelModel):
     label: str
     value: str | int
 
 
-class SentimentBreakdownItemResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class SentimentBreakdownItemResponse(CamelModel):
     label: str
     value: int
 
 
-class SentimentBySourceItemResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class SentimentBySourceItemResponse(CamelModel):
     source_label: str
     negative_percent: int
 
 
-class ClassificationSummaryItemResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class ClassificationSummaryItemResponse(CamelModel):
     category: str
     count: int
     percent: int
 
 
-class ThemeSummaryResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class ThemeSummaryResponse(CamelModel):
     id: str
     rank: int
     name: str
@@ -98,16 +78,12 @@ class ThemeSummaryResponse(BaseModel):
     source_coverage: str
 
 
-class QuoteEvidenceResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class QuoteEvidenceResponse(CamelModel):
     text: str
     source_label: str
 
 
-class PainPointSummaryResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class PainPointSummaryResponse(CamelModel):
     title: str
     summary: str
     evidence_count: int
@@ -116,55 +92,41 @@ class PainPointSummaryResponse(BaseModel):
     representative_quotes: list[QuoteEvidenceResponse]
 
 
-class FeatureRequestSummaryResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class FeatureRequestSummaryResponse(CamelModel):
     request: str
     user_need: str
     supporting_evidence: str
     priority: str
 
 
-class RoadmapRecommendationItemResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class RoadmapRecommendationItemResponse(CamelModel):
     title: str
     rationale: str
 
 
-class RoadmapRecommendationPhaseResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class RoadmapRecommendationPhaseResponse(CamelModel):
     phase: str
     items: list[RoadmapRecommendationItemResponse]
 
 
-class RepresentativeQuoteResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class RepresentativeQuoteResponse(CamelModel):
     text: str
     source_label: str
     theme_name: str | None = None
     category: str | None = None
 
 
-class ModelSignalResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class ModelSignalResponse(CamelModel):
     label: str
     value: str
 
 
-class SentimentBreakdownResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class SentimentBreakdownResponse(CamelModel):
     overall: list[SentimentBreakdownItemResponse]
     by_source: list[SentimentBySourceItemResponse]
 
 
-class DashboardPayloadResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class DashboardPayloadResponse(CamelModel):
     analysis_context: DashboardContextResponse
     source_mix: list[DashboardSourceMixItemResponse]
     kpis: list[DashboardKpiResponse]
@@ -179,23 +141,17 @@ class DashboardPayloadResponse(BaseModel):
     model_signals: list[ModelSignalResponse]
 
 
-class SynthesizeFeedbackSetResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class SynthesizeFeedbackSetResponse(CamelModel):
     analysis_run: AnalysisRunResponse
 
 
-class GetAnalysisRunResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class GetAnalysisRunResponse(CamelModel):
     analysis_run: AnalysisRunResponse
     dashboard: DashboardPayloadResponse | None = None
     placeholder_message: str | None = None
 
 
-class AnalysisRunBundleResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class AnalysisRunBundleResponse(CamelModel):
     analysis_run: AnalysisRunResponse
     feedback_set: FeedbackSetResponse
     analysis_target: AnalysisTargetResponse

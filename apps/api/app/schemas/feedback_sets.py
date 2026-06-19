@@ -1,38 +1,27 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from app.schemas.base import CamelModel, NonEmptyString, to_camel
 
 
-def to_camel(value: str) -> str:
-    parts = value.split("_")
-    return parts[0] + "".join(part.capitalize() for part in parts[1:])
+class AnalysisTargetInput(CamelModel):
+    name: NonEmptyString
+    description: NonEmptyString
 
 
-class AnalysisTargetInput(BaseModel):
-    name: str = Field(min_length=1)
-    description: str = Field(min_length=1)
-
-
-class CreateFeedbackSetRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class CreateFeedbackSetRequest(CamelModel):
     analysis_target: AnalysisTargetInput
-    analysis_goal: str = Field(min_length=1)
+    analysis_goal: NonEmptyString
     name: str | None = None
 
 
-class AnalysisTargetResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class AnalysisTargetResponse(CamelModel):
     id: str
     name: str
     description: str
     created_at: datetime
 
 
-class FeedbackSetResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class FeedbackSetResponse(CamelModel):
     id: str
     analysis_target_id: str
     name: str | None = None
@@ -43,9 +32,7 @@ class FeedbackSetResponse(BaseModel):
     updated_at: datetime
 
 
-class DataSourceResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class DataSourceResponse(CamelModel):
     id: str
     feedback_set_id: str
     source_type: str
@@ -56,20 +43,14 @@ class DataSourceResponse(BaseModel):
     created_at: datetime
 
 
-class CreateFeedbackSetResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class CreateFeedbackSetResponse(CamelModel):
     analysis_target: AnalysisTargetResponse
     feedback_set: FeedbackSetResponse
 
 
-class AddDemoSourceRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
-    demo_product_id: str = Field(min_length=1)
+class AddDemoSourceRequest(CamelModel):
+    demo_product_id: NonEmptyString
 
 
-class AddDemoSourceResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class AddDemoSourceResponse(CamelModel):
     source: DataSourceResponse

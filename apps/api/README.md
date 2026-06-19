@@ -24,11 +24,13 @@ source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 ```
 
-4. Start the API from `apps/api`:
+4. Start the API from `apps/api` with Uvicorn's built-in env file loading:
 
 ```bash
-uvicorn app.main:app --reload
+./.venv/bin/uvicorn app.main:app --env-file .env --reload
 ```
+
+This loads `apps/api/.env` automatically, so no manual `source .env` step is required.
 
 The health endpoint will be available at `GET /health`.
 

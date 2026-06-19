@@ -1,6 +1,9 @@
-from fastapi import APIRouter, Depends, status
+from typing import Any
+
+from fastapi import APIRouter, Body, Depends, status
 
 from app.api.dependencies import get_feedback_set_service
+from app.api.request_parsing import parse_request_model
 from app.schemas.feedback_sets import (
     AddDemoSourceRequest,
     AddDemoSourceResponse,
@@ -18,9 +21,10 @@ router = APIRouter(tags=["feedback-sets"])
     status_code=status.HTTP_201_CREATED,
 )
 def create_feedback_set(
-    request: CreateFeedbackSetRequest,
+    payload: dict[str, Any] = Body(...),
     service: FeedbackSetService = Depends(get_feedback_set_service),
 ) -> CreateFeedbackSetResponse:
+    request = parse_request_model(payload, CreateFeedbackSetRequest)
     return service.create_feedback_set(request)
 
 
@@ -31,7 +35,8 @@ def create_feedback_set(
 )
 def add_demo_source(
     feedback_set_id: str,
-    request: AddDemoSourceRequest,
+    payload: dict[str, Any] = Body(...),
     service: FeedbackSetService = Depends(get_feedback_set_service),
 ) -> AddDemoSourceResponse:
+    request = parse_request_model(payload, AddDemoSourceRequest)
     return service.add_demo_source(feedback_set_id, request)

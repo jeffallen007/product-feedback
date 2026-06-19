@@ -1,20 +1,14 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
-
-from app.schemas.feedback_sets import to_camel
+from app.schemas.base import CamelModel
 
 
-class AskAnalysisQuestionRequest(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class AskAnalysisQuestionRequest(CamelModel):
     question: str
     scope: str = "all"
 
 
-class ChatEvidenceItemResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class ChatEvidenceItemResponse(CamelModel):
     feedback_item_id: str
     text: str
     source_label: str
@@ -22,9 +16,7 @@ class ChatEvidenceItemResponse(BaseModel):
     category: str | None = None
 
 
-class ChatMessageResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class ChatMessageResponse(CamelModel):
     id: str
     analysis_run_id: str
     role: str
@@ -36,9 +28,7 @@ class ChatMessageResponse(BaseModel):
     created_at: datetime | None = None
 
 
-class AskAnalysisQuestionResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class AskAnalysisQuestionResponse(CamelModel):
     answer: str
     scope_used: str
     evidence: list[ChatEvidenceItemResponse]
@@ -47,7 +37,5 @@ class AskAnalysisQuestionResponse(BaseModel):
     assistant_message: ChatMessageResponse
 
 
-class GetAnalysisChatHistoryResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, alias_generator=to_camel)
-
+class GetAnalysisChatHistoryResponse(CamelModel):
     messages: list[ChatMessageResponse]
