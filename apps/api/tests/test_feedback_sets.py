@@ -167,6 +167,24 @@ def test_create_feedback_set_route_returns_frontend_compatible_shape() -> None:
     assert response.json() == fake_response
 
 
+def test_create_feedback_set_route_handles_cors_preflight() -> None:
+    client = TestClient(app)
+
+    response = client.options(
+        "/feedback-sets",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert "POST" in response.headers["access-control-allow-methods"]
+    assert "content-type" in response.headers["access-control-allow-headers"].lower()
+
+
 def test_create_feedback_set_route_returns_missing_config_error() -> None:
     app.dependency_overrides[get_feedback_set_service] = lambda: (_ for _ in ()).throw(
         MissingSupabaseConfigError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured."),
