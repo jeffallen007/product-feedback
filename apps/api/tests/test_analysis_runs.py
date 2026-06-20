@@ -413,15 +413,15 @@ def test_ask_placeholder_question_persists_user_and_assistant_messages() -> None
     assert len(chat_inserts) == 2
     assert chat_inserts[0][1]["role"] == "user"
     assert chat_inserts[1][1]["role"] == "assistant"
-    assert response.answer.startswith("Notification overload is a valid placeholder theme")
+    assert response.answer.startswith("Notification overload is one of the strongest signals in this run")
     assert response.scope_used == "all"
     assert len(response.evidence) == 3
     assert response.evidence[0].source_label == "Productivity Tool Demo Dataset"
     assert response.user_message.role == "user"
     assert response.assistant_message.role == "assistant"
     assert response.assistant_message.follow_up_suggestions == [
-        "Summarize notification issues by severity.",
-        "Draft a fix recommendation for notification defaults.",
+        "Summarize notification overload by severity.",
+        "Draft a roadmap recommendation for notification overload.",
     ]
 
 

@@ -1,7 +1,12 @@
 from collections import Counter
 
 from app.clients.supabase import SupabaseRestClient
-from app.dashboard_placeholders import PLACEHOLDER_DASHBOARD_COPY
+from app.demo_synthesis import (
+    build_demo_dashboard_payload,
+    find_theme_matches,
+    get_demo_profile,
+    infer_demo_feedback_attributes,
+)
 from app.errors import (
     AnalysisRunNotFoundError,
     EmptyFeedbackSetError,
@@ -338,137 +343,22 @@ class AnalysisRunService:
         feedback_items: list[dict[str, object]],
         analysis_goal: str,
     ) -> DashboardPayloadResponse:
-        total_feedback_count = len(feedback_items)
-        demo_product_id = None
-        if sources:
-            metadata = sources[0].get("metadata_json", {})
-            if isinstance(metadata, dict):
-                demo_product_id = metadata.get("demo_product_id")
-        placeholder_copy = PLACEHOLDER_DASHBOARD_COPY.get(
-            str(demo_product_id),
-            PLACEHOLDER_DASHBOARD_COPY["productivity_tool"],
+        demo_product_id = self._resolve_demo_product_id(
+            analysis_target=analysis_target,
+            sources=sources,
+            feedback_items=feedback_items,
         )
-        source_mix = self._build_source_mix(sources, total_feedback_count)
-        representative_quotes = [
-            {
-                "text": str(item["raw_text"]),
-                "sourceLabel": str(item["source_label"]),
-            }
-            for item in feedback_items[:3]
-        ]
-        ratings = [int(item["rating"]) for item in feedback_items if item.get("rating") is not None]
-        average_rating = sum(ratings) / len(ratings) if ratings else 0
-        overall_negative = min(100, 25 + max(0, 4 - round(average_rating)) * 15) if ratings else 38
-        source_label = str(sources[0]["source_label"]) if sources else str(analysis_target["name"])
-        top_themes = []
-        for index, (theme_id, theme_name, description) in enumerate(placeholder_copy["themes"], start=1):
-            count = max(1, round(total_feedback_count / (index + 1)))
-            percent = round((count / total_feedback_count) * 100) if total_feedback_count else 0
-            top_themes.append(
-                {
-                    "id": theme_id,
-                    "rank": index,
-                    "name": theme_name,
-                    "description": description,
-                    "count": count,
-                    "percent": percent,
-                    "sentiment": "Mixed" if index == 2 else "Mostly negative",
-                    "priority": "High" if index == 1 else "Medium",
-                    "sourceCoverage": "Demo Dataset",
-                }
-            )
-
         return DashboardPayloadResponse.model_validate(
-            {
-                "analysisContext": {
-                    "analysisRunId": str(analysis_run["id"]),
-                    "productName": str(analysis_target["name"]),
-                    "productDescription": str(analysis_target["description"]),
-                    "goal": analysis_goal,
-                    "processingMethod": "Placeholder Backend Summary",
-                    "sourceCount": len(sources),
-                    "feedbackItemCount": total_feedback_count,
-                    "lastRunAt": str(analysis_run["completed_at"]),
-                },
-                "sourceMix": source_mix,
-                "kpis": [
-                    {"label": "Feedback items analyzed", "value": str(total_feedback_count)},
-                    {"label": "Sources included", "value": str(len(sources))},
-                    {"label": "Average rating", "value": f"{average_rating:.1f}" if ratings else "N/A"},
-                    {"label": "Major themes detected", "value": str(len(top_themes))},
-                ],
-                "executiveSummary": placeholder_copy["summary"],
-                "sentimentBreakdown": {
-                    "overall": [
-                        {"label": "Positive", "value": max(15, 100 - overall_negative - 22)},
-                        {"label": "Neutral", "value": 22},
-                        {"label": "Negative", "value": overall_negative},
-                    ],
-                    "bySource": [
-                        {"sourceLabel": source_label, "negativePercent": overall_negative},
-                    ],
-                },
-                "classificationSummary": [
-                    {
-                        "category": "ux_issue",
-                        "count": max(1, total_feedback_count // 3),
-                        "percent": round((max(1, total_feedback_count // 3) / total_feedback_count) * 100)
-                        if total_feedback_count
-                        else 0,
-                    },
-                    {
-                        "category": "feature_request",
-                        "count": max(1, total_feedback_count // 4),
-                        "percent": round((max(1, total_feedback_count // 4) / total_feedback_count) * 100)
-                        if total_feedback_count
-                        else 0,
-                    },
-                ],
-                "topThemes": top_themes,
-                "painPoints": [
-                    {
-                        "title": top_themes[0]["name"],
-                        "summary": top_themes[0]["description"],
-                        "evidenceCount": top_themes[0]["count"],
-                        "impact": placeholder_copy["roadmap"],
-                        "recommendedAction": placeholder_copy["roadmap"],
-                        "representativeQuotes": representative_quotes[:1],
-                    }
-                ],
-                "featureRequests": [
-                    {
-                        "request": placeholder_copy["feature_request"],
-                        "userNeed": "Reduce friction in the core workflow",
-                        "supportingEvidence": "Demo Dataset",
-                        "priority": "High",
-                    }
-                ],
-                "roadmapRecommendations": [
-                    {
-                        "phase": "Now",
-                        "items": [
-                            {
-                                "title": placeholder_copy["roadmap"],
-                                "rationale": placeholder_copy["signal"],
-                            }
-                        ],
-                    }
-                ],
-                "representativeQuotes": [
-                    {
-                        "text": quote["text"],
-                        "sourceLabel": quote["sourceLabel"],
-                        "themeName": top_themes[0]["name"],
-                        "category": "ux_issue",
-                    }
-                    for quote in representative_quotes
-                ],
-                "modelSignals": [
-                    {"label": "Dataset source", "value": "Synthetic demo fixtures"},
-                    {"label": "Primary signal", "value": placeholder_copy["signal"]},
-                    {"label": "Most common keyword", "value": self._most_common_keyword(feedback_items)},
-                ],
-            }
+            build_demo_dashboard_payload(
+                dataset_id=demo_product_id,
+                analysis_run_id=str(analysis_run["id"]),
+                analysis_goal=analysis_goal,
+                completed_at=str(analysis_run["completed_at"]),
+                product_name=str(analysis_target["name"]),
+                product_description=str(analysis_target["description"]),
+                sources=sources,
+                feedback_items=feedback_items,
+            )
         )
 
     @staticmethod
@@ -513,12 +403,23 @@ class AnalysisRunService:
         dashboard_payload: DashboardPayloadResponse | None,
     ) -> dict[str, object]:
         normalized_question = question.lower()
+        demo_product_id = self._resolve_demo_product_id(
+            analysis_target=None,
+            sources=sources,
+            feedback_items=feedback_items,
+        )
+        profile = get_demo_profile(demo_product_id)
         scoped_items = self._filter_feedback_items_by_scope(feedback_items, scope)
+        normalized_items = [
+            self._normalize_feedback_item(demo_product_id, item) for item in scoped_items
+        ]
         evidence = self._build_chat_evidence(
-            scoped_items,
+            normalized_items,
             topic=None,
             fallback_theme=dashboard_payload.top_themes[0].name if dashboard_payload and dashboard_payload.top_themes else None,
         )
+        matched_themes = find_theme_matches(demo_product_id, normalized_question)
+        matched_theme = matched_themes[0] if matched_themes else None
 
         if "priorit" in normalized_question and "first" in normalized_question:
             top_theme = dashboard_payload.top_themes[0] if dashboard_payload and dashboard_payload.top_themes else None
@@ -529,8 +430,8 @@ class AnalysisRunService:
             )
             answer = (
                 f"Prioritize {roadmap_item.title if roadmap_item else 'the top workflow fix'} first. "
-                f"It is the clearest placeholder priority because {top_theme.name if top_theme else 'the leading theme'} "
-                f"shows up most often in the persisted demo slice."
+                f"It is the clearest near-term move because {top_theme.name if top_theme else 'the leading theme'} "
+                f"is the strongest repeated signal in the persisted feedback and maps to the highest-friction user workflow."
             )
             return {
                 "answer": answer,
@@ -556,34 +457,92 @@ class AnalysisRunService:
                 ],
             }
 
-        if ("show evidence" in normalized_question and "notification" in normalized_question) or "notification overload" in normalized_question:
+        if matched_theme is not None or ("show evidence" in normalized_question and "notification" in normalized_question):
+            theme_name = matched_theme.name if matched_theme is not None else "Notification overload"
+            topic = matched_theme.topics[0] if matched_theme is not None and matched_theme.topics else "notifications"
             notification_evidence = self._build_chat_evidence(
-                scoped_items,
-                topic="notifications",
-                fallback_theme="Notification overload",
+                normalized_items,
+                topic=topic,
+                fallback_theme=theme_name,
             )
-            answer = "Notification overload is a valid placeholder theme in this run. The persisted demo feedback repeatedly points to noisy default alerts, low-signal updates, and limited targeting controls."
+            evidence_count = len(notification_evidence)
+            theme_context = (
+                f"{theme_name} is one of the strongest signals in this run."
+                if matched_theme is not None
+                else "Notification overload is one of the strongest signals in this run."
+            )
+            answer = (
+                f"{theme_context} The persisted feedback points to repeated friction around "
+                f"{matched_theme.user_need.lower() if matched_theme is not None else 'noisy default alerts and limited targeting controls'}. "
+                f"I found {evidence_count} representative items tied to that theme in the current scope."
+            )
             return {
                 "answer": answer,
                 "evidence": notification_evidence[:3],
                 "follow_up_suggestions": [
-                    "Summarize notification issues by severity.",
-                    "Draft a fix recommendation for notification defaults.",
+                    f"Summarize {theme_name.lower()} by severity.",
+                    f"Draft a roadmap recommendation for {theme_name.lower()}.",
                 ],
             }
 
         if "churn risk" in normalized_question:
-            low_rating_items = [item for item in scoped_items if item.get("rating") is not None and float(item["rating"]) <= 2]
+            low_rating_items = [item for item in normalized_items if item.get("rating") is not None and float(item["rating"]) <= 2]
+            risk_themes = Counter(
+                str(item.get("theme_name") or "general reliability")
+                for item in low_rating_items
+            )
+            leading_risk = risk_themes.most_common(1)[0][0] if risk_themes else "general reliability"
             answer = (
-                f"Placeholder churn risk looks concentrated in {len(low_rating_items)} low-rating items tied to recurring friction. "
-                "The strongest signals are repeated workflow pain, reliability gaps, and settings complexity rather than a single blocking bug."
+                f"Churn risk is concentrated in {len(low_rating_items)} low-rating items, with the sharpest pressure around {leading_risk.lower()}. "
+                "The pattern here looks like repeated workflow frustration and trust erosion rather than a single isolated bug."
             )
             return {
                 "answer": answer,
-                "evidence": self._build_chat_evidence(low_rating_items or scoped_items, topic=None, fallback_theme="Churn risk")[:3],
+                "evidence": self._build_chat_evidence(low_rating_items or normalized_items, topic=None, fallback_theme=leading_risk)[:3],
                 "follow_up_suggestions": [
                     "Which issues should be addressed first to reduce churn risk?",
                     "Summarize churn risk by theme.",
+                ],
+            }
+
+        if "persona" in normalized_question or "customer" in normalized_question or "segment" in normalized_question:
+            if dashboard_payload and dashboard_payload.top_themes:
+                primary = dashboard_payload.top_themes[0].name
+                answer = (
+                    f"The clearest persona signal is operational users who feel the main workflow friction most often. "
+                    f"For this run, {primary.lower()} stands out as the leading complaint, which usually indicates pain for the team members closest to daily execution."
+                )
+            elif profile is not None:
+                answer = (
+                    f"The dataset is tuned around product-specific personas rather than a generic audience. "
+                    f"The strongest signals usually come from users described in themes like {profile.themes[0].name.lower()} and {profile.themes[1].name.lower()}."
+                )
+            else:
+                answer = "This run has limited persona metadata, but the strongest signals still cluster around recurring workflow friction."
+            return {
+                "answer": answer,
+                "evidence": evidence[:2],
+                "follow_up_suggestions": [
+                    "Which theme affects that persona most?",
+                    "Turn this into a PM brief for the team.",
+                ],
+            }
+
+        if "severity" in normalized_question or "confidence" in normalized_question:
+            high_severity = sum(
+                1 for item in normalized_items if str(item.get("severity")) in {"high", "critical"}
+            )
+            mapped = sum(1 for item in normalized_items if item.get("theme_key"))
+            answer = (
+                f"This demo synthesis has {high_severity} high-severity signals in the current scope. "
+                f"Confidence is strongest where the feedback maps cleanly to known product themes; {mapped} of {len(normalized_items)} scoped items were classified that way."
+            )
+            return {
+                "answer": answer,
+                "evidence": evidence[:3],
+                "follow_up_suggestions": [
+                    "Which high-severity theme should move first?",
+                    "Show the quotes behind the high-severity signals.",
                 ],
             }
 
@@ -607,9 +566,22 @@ class AnalysisRunService:
                 ],
             }
 
+        if "summary" in normalized_question or "executive" in normalized_question:
+            answer = dashboard_payload.executive_summary if dashboard_payload else (
+                "This run contains concentrated product-specific feedback with a few recurring themes, but the saved summary is not available."
+            )
+            return {
+                "answer": answer,
+                "evidence": evidence[:2],
+                "follow_up_suggestions": [
+                    "What should the team prioritize first?",
+                    "Show the evidence behind the top theme.",
+                ],
+            }
+
         answer = (
-            "This placeholder analysis answer is based on the persisted dashboard summary and demo feedback items. "
-            "The current run shows a concentrated set of recurring themes, with evidence available from the stored demo dataset."
+            "This analysis answer is based on the persisted dashboard summary and deterministic demo synthesis. "
+            "The current run shows a concentrated set of product-specific themes, and the stored feedback items provide supporting evidence for follow-up questions."
         )
         return {
             "answer": answer,
@@ -658,3 +630,50 @@ class AnalysisRunService:
                 )
             )
         return evidence
+
+    @staticmethod
+    def _resolve_demo_product_id(
+        *,
+        analysis_target: dict[str, object] | None,
+        sources: list[dict[str, object]],
+        feedback_items: list[dict[str, object]],
+    ) -> str | None:
+        for source in sources:
+            metadata = source.get("metadata_json", {})
+            if isinstance(metadata, dict) and isinstance(metadata.get("demo_product_id"), str):
+                return str(metadata["demo_product_id"])
+
+        for item in feedback_items:
+            metadata = item.get("metadata_json", {})
+            if isinstance(metadata, dict) and isinstance(metadata.get("dataset_id"), str):
+                return str(metadata["dataset_id"])
+
+        if analysis_target is not None:
+            name = str(analysis_target.get("name", "")).lower()
+            if "fitness" in name:
+                return "fitness_app"
+            if "crm" in name:
+                return "crm_tool"
+            if "productivity" in name:
+                return "productivity_tool"
+        return None
+
+    @staticmethod
+    def _normalize_feedback_item(
+        dataset_id: str | None,
+        item: dict[str, object],
+    ) -> dict[str, object]:
+        inferred = infer_demo_feedback_attributes(dataset_id, item)
+        normalized = dict(item)
+        normalized.update(
+            {
+                "category": item.get("category") or inferred["category"],
+                "sentiment": item.get("sentiment") or inferred["sentiment"],
+                "severity": item.get("severity") or inferred["severity"],
+                "churn_risk": item.get("churn_risk") if item.get("churn_risk") is not None else inferred["churn_risk"],
+                "metadata_json": inferred["metadata_json"],
+                "theme_key": inferred["theme_key"],
+                "theme_name": inferred["theme_name"],
+            }
+        )
+        return normalized

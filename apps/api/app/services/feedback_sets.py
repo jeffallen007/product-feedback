@@ -1,6 +1,7 @@
 from app.clients.supabase import SupabaseRestClient
 from app.demo_feedback import DEMO_FEEDBACK_FIXTURES
 from app.demo_datasets import DEMO_DATASETS
+from app.demo_synthesis import infer_demo_feedback_attributes
 from app.errors import FeedbackSetNotFoundError, InvalidDemoProductError, SupabaseInsertError
 from app.schemas.feedback_sets import (
     AddDemoSourceRequest,
@@ -99,22 +100,28 @@ class FeedbackSetService:
                 },
             },
         )
-        feedback_item_rows = [
-            {
-                "feedback_set_id": feedback_set_id,
-                "source_id": source_row["id"],
-                "source_type": "demo_dataset",
-                "source_label": source_label,
-                "raw_text": item["raw_text"],
-                "normalized_text": item["normalized_text"],
-                "rating": item.get("rating"),
-                "feedback_date": item.get("feedback_date"),
-                "author_handle": item.get("author_handle"),
-                "url": item.get("url"),
-                "metadata_json": item.get("metadata_json", {}),
-            }
-            for item in demo_feedback_items
-        ]
+        feedback_item_rows = []
+        for item in demo_feedback_items:
+            inferred = infer_demo_feedback_attributes(demo_dataset.id, item)
+            feedback_item_rows.append(
+                {
+                    "feedback_set_id": feedback_set_id,
+                    "source_id": source_row["id"],
+                    "source_type": "demo_dataset",
+                    "source_label": source_label,
+                    "raw_text": item["raw_text"],
+                    "normalized_text": item["normalized_text"],
+                    "rating": item.get("rating"),
+                    "feedback_date": item.get("feedback_date"),
+                    "author_handle": item.get("author_handle"),
+                    "url": item.get("url"),
+                    "category": inferred["category"],
+                    "sentiment": inferred["sentiment"],
+                    "severity": inferred["severity"],
+                    "churn_risk": inferred["churn_risk"],
+                    "metadata_json": inferred["metadata_json"],
+                }
+            )
         self._supabase.insert_rows("feedback_items", feedback_item_rows)
 
         updated_total = int(feedback_set_row["total_feedback_count"]) + inserted_item_count
