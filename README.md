@@ -1,18 +1,121 @@
 # AI Product Feedback Synthesizer
 
-Portfolio demo application for synthesizing multi-source product feedback into a polished dashboard and follow-up chat experience.
+AI Product Feedback Synthesizer is a portfolio demo application that turns fragmented product feedback into roadmap intelligence.
 
-Current stack:
+The app lets a user create a feedback set, synthesize product insights, review a dashboard, and ask follow-up questions through a chat interface. It is designed to demonstrate product thinking, full-stack execution, backend persistence, and applied AI product architecture.
 
-- Frontend: Next.js at the repo root, intended for Vercel
-- Backend: FastAPI in `apps/api`, intended for Railway
-- Data: Supabase for persisted backend demo runs
+## Live Demo
 
-Current scope:
+* Frontend: deployed on Vercel
+* Backend: deployed on Railway
+* Backend health check: `https://product-feedback-production.up.railway.app/health`
 
-- Demo dataset path can run end-to-end against the backend and persist rows to Supabase
-- Custom CSV, pasted feedback, and X search flows remain mocked
-- Dashboard synthesis content is still placeholder/demo content
+## What It Does
+
+Product teams often receive feedback from many disconnected sources: customer interviews, support tickets, sales notes, app reviews, CSV exports, social posts, and internal research.
+
+This app demonstrates a workflow for converting that fragmented feedback into:
+
+* prioritized themes
+* customer pain points
+* product opportunities
+* roadmap-relevant summaries
+* follow-up answers through a chat interface
+
+## Demo Flow
+
+The currently supported end-to-end flow is the demo dataset path:
+
+1. Choose `Try Demo Dataset`
+2. Select a demo product, such as `Productivity Tool`
+3. Create a feedback set
+4. Synthesize the feedback set
+5. Review the dashboard
+6. Ask follow-up questions in chat
+
+The deployed demo writes rows to Supabase and retrieves the dashboard through the backend API.
+
+## Architecture
+
+```text
+Vercel Frontend
+      ↓
+Railway FastAPI Backend
+      ↓
+Supabase Database
+```
+
+## Tech Stack
+
+### Frontend
+
+* Next.js
+* TypeScript
+* React
+* Tailwind-style component UI
+* Vercel deployment
+
+### Backend
+
+* FastAPI
+* Python
+* Pydantic
+* Pytest
+* Railway deployment
+
+### Database
+
+* Supabase Postgres
+* SQL migrations in `supabase/migrations`
+
+## Current Implementation
+
+Implemented:
+
+* deployed Next.js frontend
+* deployed FastAPI backend
+* Supabase-backed demo dataset flow
+* feedback set creation
+* demo source creation
+* synthesis run creation
+* dashboard bundle retrieval
+* persisted chat messages
+* backend and frontend test coverage
+* production deployment on Vercel and Railway
+
+Backend endpoints:
+
+* `GET /health`
+* `POST /feedback-sets`
+* `POST /feedback-sets/{feedback_set_id}/sources/demo`
+* `POST /feedback-sets/{feedback_set_id}/synthesize`
+* `GET /analysis-runs/{analysis_run_id}`
+* `GET /analysis-runs/{analysis_run_id}/bundle`
+* `POST /analysis-runs/{analysis_run_id}/chat`
+* `GET /analysis-runs/{analysis_run_id}/chat`
+
+## What Is Real vs Simulated
+
+### Real
+
+* deployed frontend on Vercel
+* deployed backend on Railway
+* Supabase persistence
+* backend-owned demo dataset flow
+* analysis run creation
+* dashboard bundle retrieval
+* chat message persistence
+* frontend and backend validation tests
+
+### Simulated / Placeholder
+
+* synthesis logic currently uses deterministic demo content
+* chatbot responses are placeholder logic
+* CSV upload flow is presentational
+* pasted feedback flow is presentational
+* X/social search flow is presentational
+
+This is intentional for the current version: the goal was to first build and deploy the full product skeleton, then progressively replace simulated intelligence with real ingestion, classification, and LLM-based synthesis.
 
 ## Repo Layout
 
@@ -26,49 +129,57 @@ Current scope:
 └── supabase/            # SQL migrations and related setup
 ```
 
-## Frontend Setup
+## Local Development
 
-1. Install dependencies:
+### Frontend Setup
+
+Install dependencies:
 
 ```bash
 pnpm install
 ```
 
-2. Copy the frontend env example:
+Copy the frontend env example:
 
 ```bash
 cp .env.example .env.local
 ```
 
-3. Start the frontend:
+Start the frontend:
 
 ```bash
 pnpm dev
 ```
 
-The frontend runs at `http://127.0.0.1:3000` or `http://localhost:3000`.
+The frontend runs at:
+
+```text
+http://localhost:3000
+```
 
 Frontend env vars:
 
-- `NEXT_PUBLIC_API_BASE_URL`
-  Local default: `http://127.0.0.1:8000`
-- `NEXT_PUBLIC_USE_BACKEND_DEMO`
-  Set to `true` to enable the backend-backed demo dataset flow
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
+NEXT_PUBLIC_USE_BACKEND_DEMO=true
+```
 
-## Backend Setup
+### Backend Setup
 
-1. Create the backend env file:
+Create the backend env file:
 
 ```bash
 cp apps/api/.env.example apps/api/.env
 ```
 
-2. Fill in:
+Fill in:
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+```bash
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+```
 
-3. Create a backend virtualenv and install dependencies:
+Create a virtual environment and install dependencies:
 
 ```bash
 cd apps/api
@@ -77,66 +188,50 @@ source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 ```
 
-4. Start the backend:
+Start the backend:
 
 ```bash
 ./.venv/bin/uvicorn app.main:app --env-file .env --reload
 ```
 
-The backend runs locally at `http://127.0.0.1:8000`.
+The backend runs locally at:
 
-Backend env vars:
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `APP_ENV`
-  Optional. Defaults to `development`.
-- `FRONTEND_ORIGINS`
-  Optional comma-separated list of allowed frontend origins for CORS.
-  If unset, the backend allows:
-  - `http://localhost:3000`
-  - `http://127.0.0.1:3000`
-  - `http://localhost:3001`
-  - `http://127.0.0.1:3001`
-
-Example:
-
-```bash
-FRONTEND_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+```text
+http://127.0.0.1:8000
 ```
 
 ## Supabase Setup
 
-The backend demo path requires a Supabase project because the FastAPI app persists:
+The backend demo path requires a Supabase project. The FastAPI backend persists:
 
-- analysis targets
-- feedback sets
-- data sources
-- analysis runs
-- placeholder dashboard summaries
-- chat messages
+* analysis targets
+* feedback sets
+* data sources
+* analysis runs
+* dashboard summaries
+* chat messages
 
-Apply the existing migration from `supabase/migrations/` in your Supabase project before running the backend demo flow.
+Apply the existing migration from `supabase/migrations/` before running the backend demo flow.
 
-The frontend does not require Supabase env vars directly.
+The frontend does not require Supabase credentials directly.
 
-## Local E2E Demo
+## Local End-to-End Demo
 
-1. Start the backend from `apps/api`.
-2. Start the frontend from the repo root.
-3. Open the frontend in the browser.
-4. Choose `Try Demo Dataset`.
-5. Select a demo product.
-6. Continue to review and click `Synthesize Feedback Set`.
+1. Start the backend from `apps/api`
+2. Start the frontend from the repo root
+3. Open the frontend in the browser
+4. Choose `Try Demo Dataset`
+5. Select a demo product
+6. Click `Synthesize Feedback Set`
 
 Expected behavior:
 
-- frontend calls FastAPI instead of using the mock demo path
-- FastAPI writes rows to Supabase
-- dashboard loads from the backend-owned analysis bundle
-- chat uses the backend-backed demo flow when available
+* frontend calls FastAPI instead of the mock-only demo path
+* FastAPI writes rows to Supabase
+* dashboard loads from the backend-owned analysis bundle
+* chat uses the backend-backed demo flow when available
 
-If the backend is unavailable or returns an error, the frontend falls back to mock demo behavior.
+If the backend is unavailable, the frontend falls back to mock demo behavior.
 
 ## Testing
 
@@ -154,16 +249,20 @@ From `apps/api`:
 ./.venv/bin/python -m pytest
 ```
 
-## Deployment Notes
+Current validation status:
+
+* frontend tests passing
+* backend tests passing
+* Next.js production build passing
+
+## Deployment
 
 ### Railway Backend
 
-Recommended service root: `apps/api`
+Railway service root:
 
-Build/install steps:
-
-```bash
-pip install -r requirements.txt
+```text
+apps/api
 ```
 
 Start command:
@@ -172,34 +271,41 @@ Start command:
 uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
-Set these Railway env vars:
+Required Railway env vars:
 
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `FRONTEND_ORIGINS`
-  Set this to the eventual Vercel frontend origin, or a comma-separated list if needed.
+```bash
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+APP_ENV=production
+FRONTEND_ORIGINS=
+```
 
-Optional:
-
-- `APP_ENV=production`
+`FRONTEND_ORIGINS` should include the deployed Vercel frontend URL and any local development origins needed.
 
 ### Vercel Frontend
 
-The frontend can stay at the repo root.
+The frontend deploys from the repo root.
 
-Set these Vercel env vars:
+Required Vercel env vars:
 
-- `NEXT_PUBLIC_API_BASE_URL`
-  Set this to the Railway backend URL
-- `NEXT_PUBLIC_USE_BACKEND_DEMO=true`
+```bash
+NEXT_PUBLIC_API_BASE_URL=https://product-feedback-production.up.railway.app
+NEXT_PUBLIC_USE_BACKEND_DEMO=true
+```
 
 Do not put Supabase service role credentials in Vercel.
 
-## Next Deployment Steps
+## Roadmap
 
-1. Create a Railway service rooted at `apps/api`.
-2. Set Railway env vars for Supabase and `FRONTEND_ORIGINS`.
-3. Create a Vercel project from the repo root.
-4. Set Vercel frontend env vars to point at Railway.
-5. Update `FRONTEND_ORIGINS` on Railway to the actual Vercel origin.
-6. Run the demo dataset path against deployed services and verify rows are written to Supabase.
+Near-term product improvements:
+
+* make dashboard synthesis content more realistic
+* connect pasted feedback to the backend
+* add CSV upload ingestion
+* add real ML/LLM-based synthesis
+* improve source-aware chat responses
+* add stronger portfolio/demo narrative and screenshots
+
+## Project Goal
+
+This project is intended to show how an AI-native product workflow can move from raw customer feedback to structured product intelligence. It demonstrates the foundation for a system that could help product managers, founders, and customer-facing teams identify what customers are asking for, why it matters, and what to build next.
