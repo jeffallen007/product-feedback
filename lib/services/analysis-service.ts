@@ -4,6 +4,7 @@ import {
   MOCK_DASHBOARD_PAYLOAD,
 } from "@/lib/mocks/dashboard"
 import { DEMO_PRODUCTS } from "@/lib/mocks/workflow"
+import { composeDashboardForGoal } from "@/lib/services/dashboard-goal-composition"
 import { isBackendDemoEnabled, backendRequest } from "@/lib/services/backend-client"
 import { mapBackendBundleResponse } from "@/lib/services/backend-mappers"
 import type {
@@ -75,14 +76,7 @@ export async function runDemoAnalysis(
   input: RunDemoAnalysisRequest,
 ): Promise<RunDemoAnalysisResponse> {
   if (isBackendDemoEnabled()) {
-    try {
-      return await runBackendDemoAnalysis(input)
-    } catch (error) {
-      logBackendFallback(
-        "Run demo analysis failed, falling back to the mock demo flow.",
-        error,
-      )
-    }
+    return runBackendDemoAnalysis(input)
   }
 
   return runMockDemoAnalysis(input)
@@ -294,8 +288,10 @@ async function synthesizeMockFeedbackSet(
     completedAt: now(),
     errorMessage: null,
     metadata: {
-      feedbackItemCount: MOCK_DASHBOARD_PAYLOAD.analysisContext.feedbackItemCount,
-      sourceCount: MOCK_DASHBOARD_PAYLOAD.analysisContext.sourceCount,
+      feedbackItemCount:
+        record.feedbackSet.totalFeedbackCount ||
+        record.sources.reduce((sum, source) => sum + source.itemCount, 0),
+      sourceCount: record.sources.length,
     },
   }
 
@@ -336,44 +332,37 @@ export async function askAnalysisQuestion(
   const runMode = analysisRunModeStore.get(request.analysisRunId)
 
   if (runMode === "backend" && isBackendDemoEnabled()) {
-    try {
-      const response = await backendRequest<AskAnalysisQuestionResponse & {
-        userMessage?: GetAnalysisRunBundleResponse["chatHistory"][number]
-        assistantMessage?: GetAnalysisRunBundleResponse["chatHistory"][number]
-      }>(`/analysis-runs/${request.analysisRunId}/chat`, {
-        method: "POST",
-        body: JSON.stringify({
-          question: request.question,
-          scope: request.scope,
-        }),
+    const response = await backendRequest<AskAnalysisQuestionResponse & {
+      userMessage?: GetAnalysisRunBundleResponse["chatHistory"][number]
+      assistantMessage?: GetAnalysisRunBundleResponse["chatHistory"][number]
+    }>(`/analysis-runs/${request.analysisRunId}/chat`, {
+      method: "POST",
+      body: JSON.stringify({
+        question: request.question,
+        scope: request.scope,
+      }),
+    })
+
+    const cachedBundle = analysisRunBundleStore.get(request.analysisRunId)
+    if (cachedBundle) {
+      const nextChatHistory = [...cachedBundle.chatHistory]
+      if (response.userMessage) {
+        nextChatHistory.push(response.userMessage)
+      }
+      if (response.assistantMessage) {
+        nextChatHistory.push(response.assistantMessage)
+      }
+      analysisRunBundleStore.set(request.analysisRunId, {
+        ...cachedBundle,
+        chatHistory: nextChatHistory,
       })
+    }
 
-      const cachedBundle = analysisRunBundleStore.get(request.analysisRunId)
-      if (cachedBundle) {
-        const nextChatHistory = [...cachedBundle.chatHistory]
-        if (response.userMessage) {
-          nextChatHistory.push(response.userMessage)
-        }
-        if (response.assistantMessage) {
-          nextChatHistory.push(response.assistantMessage)
-        }
-        analysisRunBundleStore.set(request.analysisRunId, {
-          ...cachedBundle,
-          chatHistory: nextChatHistory,
-        })
-      }
-
-      return {
-        answer: response.answer,
-        scopeUsed: response.scopeUsed,
-        evidence: response.evidence,
-        followUpSuggestions: response.followUpSuggestions,
-      }
-    } catch (error) {
-      logBackendFallback(
-        "Backend chat failed, falling back to the mock assistant response.",
-        error,
-      )
+    return {
+      answer: response.answer,
+      scopeUsed: response.scopeUsed,
+      evidence: response.evidence,
+      followUpSuggestions: response.followUpSuggestions,
     }
   }
 
@@ -408,7 +397,9 @@ async function runBackendDemoAnalysis(
     analysisRun: { id: string }
   }>(`/feedback-sets/${createResponse.feedbackSet.id}/synthesize`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      analysisGoal: input.analysisGoal,
+    }),
   })
 
   const bundle = await fetchBackendBundle(synthesizeResponse.analysisRun.id)
@@ -438,7 +429,25 @@ async function runMockDemoAnalysis(
   const synthesizeResponse = await synthesizeMockFeedbackSet({
     feedbackSetId: feedbackSet.id,
   })
-  const bundle = buildMockBundle(synthesizeResponse.analysisRun.id)
+  const demoReviewState = buildDemoReviewState({
+    demoProductId: input.demoProductId,
+  })
+  const bundle = buildMockBundle(synthesizeResponse.analysisRun.id, {
+    productName: demoReviewState.product.name,
+    productDescription: demoReviewState.product.description,
+    analysisGoal: input.analysisGoal,
+    sourceLabel: demoReviewState.sources[0]?.sourceLabel ?? "Demo Dataset",
+    sourceCount: 1,
+    feedbackItemCount: demoReviewState.sources[0]?.itemCount ?? 0,
+  })
+  const storedRun = analysisRunStore.get(synthesizeResponse.analysisRun.id)
+  if (storedRun && bundle.dashboard) {
+    analysisRunStore.set(synthesizeResponse.analysisRun.id, {
+      ...storedRun,
+      dashboard: bundle.dashboard,
+    })
+  }
+  analysisRunBundleStore.set(synthesizeResponse.analysisRun.id, bundle)
 
   return {
     analysisRun: synthesizeResponse.analysisRun,
@@ -458,6 +467,14 @@ async function fetchBackendBundle(
 
 function buildMockBundle(
   analysisRunId: string,
+  dashboardOverrides?: {
+    productName: string
+    productDescription: string
+    analysisGoal: DashboardPayload["analysisContext"]["goal"]
+    sourceLabel: string
+    sourceCount: number
+    feedbackItemCount: number
+  },
 ): GetAnalysisRunBundleResponse {
   const runRecord = analysisRunStore.get(analysisRunId)
   if (!runRecord) {
@@ -474,7 +491,10 @@ function buildMockBundle(
     feedbackSet: feedbackRecord.feedbackSet,
     analysisTarget: feedbackRecord.analysisTarget,
     sources: feedbackRecord.sources,
-    dashboard: runRecord.dashboard,
+    dashboard:
+      dashboardOverrides === undefined
+        ? runRecord.dashboard
+        : buildDashboardPayload(analysisRunId, dashboardOverrides),
     chatHistory: [],
     placeholderMessage: null,
     meta: createBundleMeta(
@@ -585,14 +605,59 @@ export function buildCustomReviewState(
   }
 }
 
-function buildDashboardPayload(analysisRunId: string): DashboardPayload {
-  return {
+function buildDashboardPayload(
+  analysisRunId: string,
+  overrides?: {
+    productName: string
+    productDescription: string
+    analysisGoal: DashboardPayload["analysisContext"]["goal"]
+    sourceLabel: string
+    sourceCount: number
+    feedbackItemCount: number
+  },
+): DashboardPayload {
+  return composeDashboardForGoal({
     ...MOCK_DASHBOARD_PAYLOAD,
     analysisContext: {
       ...MOCK_DASHBOARD_PAYLOAD.analysisContext,
       analysisRunId,
+      productName:
+        overrides?.productName ?? MOCK_DASHBOARD_PAYLOAD.analysisContext.productName,
+      productDescription:
+        overrides?.productDescription ??
+        MOCK_DASHBOARD_PAYLOAD.analysisContext.productDescription,
+      goal: overrides?.analysisGoal ?? MOCK_DASHBOARD_PAYLOAD.analysisContext.goal,
+      sourceCount:
+        overrides?.sourceCount ?? MOCK_DASHBOARD_PAYLOAD.analysisContext.sourceCount,
+      feedbackItemCount:
+        overrides?.feedbackItemCount ??
+        MOCK_DASHBOARD_PAYLOAD.analysisContext.feedbackItemCount,
     },
-  }
+    sourceMix:
+      overrides === undefined
+        ? MOCK_DASHBOARD_PAYLOAD.sourceMix
+        : [
+            {
+              sourceId: "source_demo",
+              sourceType: "demo_dataset",
+              label: overrides.sourceLabel,
+              count: overrides.feedbackItemCount,
+              unit: "items",
+              percent: 100,
+            },
+          ],
+    kpis:
+      overrides === undefined
+        ? MOCK_DASHBOARD_PAYLOAD.kpis
+        : [
+            {
+              label: "Feedback items analyzed",
+              value: String(overrides.feedbackItemCount),
+            },
+            { label: "Sources included", value: String(overrides.sourceCount) },
+            ...MOCK_DASHBOARD_PAYLOAD.kpis.slice(2),
+          ],
+  })
 }
 
 function createReviewSource({

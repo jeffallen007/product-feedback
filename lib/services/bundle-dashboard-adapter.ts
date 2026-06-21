@@ -1,4 +1,8 @@
 import { MOCK_DASHBOARD_PAYLOAD, type ChatMessage } from "@/lib/mocks/dashboard"
+import {
+  composeDashboardForGoal,
+  getVisibleDashboardSections,
+} from "@/lib/services/dashboard-goal-composition"
 import type { GetAnalysisRunBundleResponse } from "@/lib/types/api"
 import type {
   AnalysisRunStatus,
@@ -233,6 +237,10 @@ export function adaptBackendBundleToDashboard(
   bundle: GetAnalysisRunBundleResponse,
 ): BackendDashboardViewModel {
   const payload = (bundle.dashboard ?? {}) as Partial<DashboardPayload>
+  const goal =
+    bundle.feedbackSet.analysisGoal ??
+    payload.analysisContext?.goal ??
+    MOCK_DASHBOARD_PAYLOAD.analysisContext.goal
   const totalFeedbackCount = deriveTotalFeedbackCount(bundle)
   const sourceMix = normalizeSourceMixPercents(
     deriveSourceMix(bundle, totalFeedbackCount),
@@ -257,8 +265,17 @@ export function adaptBackendBundleToDashboard(
     MOCK_DASHBOARD_PAYLOAD.painPoints,
     sourceLabels,
   )
+  const visibleSections = new Set(
+    getVisibleDashboardSections({
+      ...MOCK_DASHBOARD_PAYLOAD,
+      analysisContext: {
+        ...MOCK_DASHBOARD_PAYLOAD.analysisContext,
+        goal,
+      },
+    }),
+  )
 
-  const dashboard: DashboardPayload = {
+  const dashboard = composeDashboardForGoal({
     analysisContext: {
       analysisRunId: bundle.analysisRun.id,
       productName:
@@ -269,10 +286,7 @@ export function adaptBackendBundleToDashboard(
         bundle.analysisTarget.description ||
         coerceString(payload.analysisContext?.productDescription) ||
         MOCK_DASHBOARD_PAYLOAD.analysisContext.productDescription,
-      goal:
-        bundle.feedbackSet.analysisGoal ??
-        payload.analysisContext?.goal ??
-        MOCK_DASHBOARD_PAYLOAD.analysisContext.goal,
+      goal,
       processingMethod,
       sourceCount,
       feedbackItemCount: totalFeedbackCount,
@@ -285,33 +299,60 @@ export function adaptBackendBundleToDashboard(
       fallbackExecutiveSummary(bundle, totalFeedbackCount, sourceCount),
     sentimentBreakdown: {
       overall:
-        payload.sentimentBreakdown && nonEmptyArray(payload.sentimentBreakdown.overall)
+        !visibleSections.has("sentimentBreakdown")
+          ? []
+          : payload.sentimentBreakdown &&
+              nonEmptyArray(payload.sentimentBreakdown.overall)
           ? payload.sentimentBreakdown.overall
           : MOCK_DASHBOARD_PAYLOAD.sentimentBreakdown.overall,
       bySource:
-        payload.sentimentBreakdown && nonEmptyArray(payload.sentimentBreakdown.bySource)
+        !visibleSections.has("sentimentBreakdown")
+          ? []
+          : payload.sentimentBreakdown &&
+              nonEmptyArray(payload.sentimentBreakdown.bySource)
           ? payload.sentimentBreakdown.bySource
           : fallbackSentimentBySource(sourceMix),
     },
-    classificationSummary: nonEmptyArray(payload.classificationSummary)
+    classificationSummary:
+      !visibleSections.has("classificationSummary")
+        ? []
+        : nonEmptyArray(payload.classificationSummary)
       ? payload.classificationSummary
       : MOCK_DASHBOARD_PAYLOAD.classificationSummary,
-    topThemes: nonEmptyArray(payload.topThemes)
+    topThemes:
+      !visibleSections.has("topThemes")
+        ? []
+        : nonEmptyArray(payload.topThemes)
       ? payload.topThemes
       : MOCK_DASHBOARD_PAYLOAD.topThemes,
-    painPoints: nonEmptyArray(payload.painPoints)
+    painPoints:
+      !visibleSections.has("painPoints")
+        ? []
+        : nonEmptyArray(payload.painPoints)
       ? payload.painPoints
       : fallbackPainPoints,
-    featureRequests: nonEmptyArray(payload.featureRequests)
+    featureRequests:
+      !visibleSections.has("featureRequests")
+        ? []
+        : nonEmptyArray(payload.featureRequests)
       ? payload.featureRequests
       : MOCK_DASHBOARD_PAYLOAD.featureRequests,
-    roadmapRecommendations: nonEmptyArray(payload.roadmapRecommendations)
+    roadmapRecommendations:
+      !visibleSections.has("roadmapRecommendations")
+        ? []
+        : nonEmptyArray(payload.roadmapRecommendations)
       ? payload.roadmapRecommendations
       : MOCK_DASHBOARD_PAYLOAD.roadmapRecommendations,
-    representativeQuotes: nonEmptyArray(payload.representativeQuotes)
+    representativeQuotes:
+      !visibleSections.has("representativeQuotes")
+        ? []
+        : nonEmptyArray(payload.representativeQuotes)
       ? payload.representativeQuotes
       : fallbackQuotes,
-    modelSignals: nonEmptyArray(payload.modelSignals)
+    modelSignals:
+      !visibleSections.has("modelSignals")
+        ? []
+        : nonEmptyArray(payload.modelSignals)
       ? payload.modelSignals
       : [
           { label: "Data mode", value: "Backend demo bundle" },
@@ -322,7 +363,7 @@ export function adaptBackendBundleToDashboard(
             value: sourceLabels.join(", ") || "No sources captured",
           },
         ],
-  }
+  })
 
   return {
     dataMode: "backend",

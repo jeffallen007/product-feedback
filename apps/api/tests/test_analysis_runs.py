@@ -21,6 +21,11 @@ class FakeAnalysisSupabaseClient:
         *,
         has_sources: bool = True,
         total_feedback_count: int = 12,
+        analysis_target_name: str = "Pulse Fitness",
+        analysis_target_description: str = "A mobile fitness coaching app for guided routines.",
+        analysis_goal: str = "Full Product Feedback Synthesis",
+        source_label: str = "Productivity Tool Demo Dataset",
+        demo_product_id: str = "productivity_tool",
         dashboard_summary: dict[str, object] | None = None,
         fail_dashboard_insert: bool = False,
         fail_chat_insert: bool = False,
@@ -29,6 +34,11 @@ class FakeAnalysisSupabaseClient:
         self.calls: list[tuple[str, dict[str, object] | dict[str, str]]] = []
         self.has_sources = has_sources
         self.total_feedback_count = total_feedback_count
+        self.analysis_target_name = analysis_target_name
+        self.analysis_target_description = analysis_target_description
+        self.analysis_goal = analysis_goal
+        self.source_label = source_label
+        self.demo_product_id = demo_product_id
         self.dashboard_summary = dashboard_summary
         self.fail_dashboard_insert = fail_dashboard_insert
         self.fail_chat_insert = fail_chat_insert
@@ -44,8 +54,8 @@ class FakeAnalysisSupabaseClient:
         if table == "analysis_targets":
             return {
                 "id": filters["id"],
-                "name": "Pulse Fitness",
-                "description": "A mobile fitness coaching app for guided routines.",
+                "name": self.analysis_target_name,
+                "description": self.analysis_target_description,
                 "created_at": datetime(2026, 6, 18, 7, 45, tzinfo=UTC).isoformat(),
             }
         if table == "feedback_sets":
@@ -53,7 +63,7 @@ class FakeAnalysisSupabaseClient:
                 "id": filters["id"],
                 "analysis_target_id": "target_123",
                 "name": "Demo Run",
-                "analysis_goal": "Full Product Feedback Synthesis",
+                "analysis_goal": self.analysis_goal,
                 "status": "ready",
                 "total_feedback_count": self.total_feedback_count,
                 "created_at": datetime(2026, 6, 18, 8, 0, tzinfo=UTC).isoformat(),
@@ -69,7 +79,7 @@ class FakeAnalysisSupabaseClient:
                 "completed_at": datetime(2026, 6, 18, 9, 0, tzinfo=UTC).isoformat(),
                 "error_message": None,
                 "metadata_json": {
-                    "analysis_goal": "Full Product Feedback Synthesis",
+                    "analysis_goal": self.analysis_goal,
                     "total_feedback_count": self.total_feedback_count,
                     "source_count": 1,
                 },
@@ -91,10 +101,10 @@ class FakeAnalysisSupabaseClient:
                         "id": "source_789",
                         "feedback_set_id": filters["feedback_set_id"],
                         "source_type": "demo_dataset",
-                        "source_label": "Productivity Tool Demo Dataset",
+                        "source_label": self.source_label,
                         "item_count": self.total_feedback_count,
                         "status": "ready",
-                        "metadata_json": {"demo_product_id": "productivity_tool"},
+                        "metadata_json": {"demo_product_id": self.demo_product_id},
                         "created_at": datetime(2026, 6, 18, 8, 5, tzinfo=UTC).isoformat(),
                     }
                 ]
@@ -111,7 +121,7 @@ class FakeAnalysisSupabaseClient:
                     "normalized_text": self._feedback_item_normalized_text(index),
                     "rating": self._feedback_item_rating(index),
                     "source_type": "demo_dataset",
-                    "source_label": "Productivity Tool Demo Dataset",
+                    "source_label": self.source_label,
                     "metadata_json": self._feedback_item_metadata(index),
                 }
                 for index in range(1, self.total_feedback_count + 1)
@@ -353,6 +363,104 @@ def test_create_placeholder_run_persists_analysis_run_and_dashboard_summary() ->
         "analysis_runs",
         "dashboard_summaries",
     ]
+
+
+def test_create_placeholder_run_uses_selected_fitness_product_context() -> None:
+    client = FakeAnalysisSupabaseClient(
+        analysis_target_name="Fitness App",
+        analysis_target_description="Workout tracking, subscriptions, and device sync feedback.",
+        source_label="Fitness App Demo Dataset",
+        demo_product_id="fitness_app",
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    dashboard_insert = next(call[1] for call in client.calls if call[0] == "dashboard_summaries")
+
+    assert response.analysis_run.metadata["analysis_goal"] == "Full Product Feedback Synthesis"
+    assert dashboard_insert["summary_payload"]["analysisContext"]["productName"] == "Fitness App"
+    assert dashboard_insert["summary_payload"]["executiveSummary"].startswith("Fitness App feedback suggests")
+    assert dashboard_insert["summary_payload"]["topThemes"][0]["name"] != "Notification overload"
+
+
+def test_create_placeholder_run_uses_selected_crm_product_context() -> None:
+    client = FakeAnalysisSupabaseClient(
+        analysis_target_name="CRM Tool",
+        analysis_target_description="Pipeline, reporting, and integration feedback from sales teams.",
+        source_label="CRM Tool Demo Dataset",
+        demo_product_id="crm_tool",
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    dashboard_insert = next(call[1] for call in client.calls if call[0] == "dashboard_summaries")
+
+    assert dashboard_insert["summary_payload"]["analysisContext"]["productName"] == "CRM Tool"
+    assert dashboard_insert["summary_payload"]["topThemes"][0]["name"] != "Notification overload"
+
+
+def test_create_placeholder_run_only_includes_selected_demo_dataset_in_source_mix() -> None:
+    client = FakeAnalysisSupabaseClient(
+        source_label="Fitness App Demo Dataset",
+        demo_product_id="fitness_app",
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    dashboard_insert = next(call[1] for call in client.calls if call[0] == "dashboard_summaries")
+    source_mix = dashboard_insert["summary_payload"]["sourceMix"]
+
+    assert source_mix == [
+        {
+            "sourceId": "source_789",
+            "sourceType": "demo_dataset",
+            "label": "Fitness App Demo Dataset",
+            "count": 12,
+            "unit": "items",
+            "percent": 100,
+        }
+    ]
+
+
+def test_create_placeholder_run_applies_non_full_goal_focus() -> None:
+    client = FakeAnalysisSupabaseClient(
+        analysis_goal="Prioritize Roadmap Opportunities",
+        source_label="CRM Tool Demo Dataset",
+        demo_product_id="crm_tool",
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    service.create_placeholder_run(
+        "set_456",
+        SynthesizeFeedbackSetRequest(analysisGoal="Prioritize Roadmap Opportunities"),
+    )
+    dashboard_insert = next(call[1] for call in client.calls if call[0] == "dashboard_summaries")
+    payload = dashboard_insert["summary_payload"]
+
+    assert payload["analysisContext"]["goal"] == "Prioritize Roadmap Opportunities"
+    assert payload["featureRequests"] != []
+    assert payload["roadmapRecommendations"] != []
+    assert payload["topThemes"] != []
+    assert payload["painPoints"] == []
+    assert payload["sentimentBreakdown"] == {"overall": [], "bySource": []}
+
+
+def test_create_placeholder_run_keeps_full_goal_sections() -> None:
+    client = FakeAnalysisSupabaseClient()
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    service.create_placeholder_run(
+        "set_456",
+        SynthesizeFeedbackSetRequest(analysisGoal="Full Product Feedback Synthesis"),
+    )
+    dashboard_insert = next(call[1] for call in client.calls if call[0] == "dashboard_summaries")
+    payload = dashboard_insert["summary_payload"]
+
+    assert payload["analysisContext"]["goal"] == "Full Product Feedback Synthesis"
+    assert payload["sentimentBreakdown"]["overall"] != []
+    assert payload["painPoints"] != []
+    assert payload["featureRequests"] != []
+    assert payload["roadmapRecommendations"] != []
 
 
 def test_create_placeholder_run_rejects_missing_feedback_set() -> None:

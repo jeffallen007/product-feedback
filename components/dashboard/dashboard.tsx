@@ -45,6 +45,13 @@ import {
   Loader2,
 } from "lucide-react"
 
+function hasSentimentData(dashboard: DashboardPayload): boolean {
+  return (
+    dashboard.sentimentBreakdown.overall.length > 0 ||
+    dashboard.sentimentBreakdown.bySource.length > 0
+  )
+}
+
 function toScopeLabel(scope: ChatScope): string {
   switch (scope) {
     case "demo_dataset":
@@ -430,17 +437,31 @@ export function Dashboard({
                 </p>
               </Card>
 
-              <SentimentOverview
-                sentimentBreakdown={dashboard.sentimentBreakdown}
-              />
-              <TopThemes themes={dashboard.topThemes} />
-              <PainPointCards painPoints={dashboard.painPoints} />
-              <FeatureRequests featureRequests={dashboard.featureRequests} />
-              <RoadmapRecommendations
-                roadmap={dashboard.roadmapRecommendations}
-              />
-              <RepresentativeQuotes quotes={dashboard.representativeQuotes} />
-              <ModelSignals signals={dashboard.modelSignals} />
+              {hasSentimentData(dashboard) && (
+                <SentimentOverview
+                  sentimentBreakdown={dashboard.sentimentBreakdown}
+                />
+              )}
+              {dashboard.topThemes.length > 0 && (
+                <TopThemes themes={dashboard.topThemes} />
+              )}
+              {dashboard.painPoints.length > 0 && (
+                <PainPointCards painPoints={dashboard.painPoints} />
+              )}
+              {dashboard.featureRequests.length > 0 && (
+                <FeatureRequests featureRequests={dashboard.featureRequests} />
+              )}
+              {dashboard.roadmapRecommendations.length > 0 && (
+                <RoadmapRecommendations
+                  roadmap={dashboard.roadmapRecommendations}
+                />
+              )}
+              {dashboard.representativeQuotes.length > 0 && (
+                <RepresentativeQuotes quotes={dashboard.representativeQuotes} />
+              )}
+              {dashboard.modelSignals.length > 0 && (
+                <ModelSignals signals={dashboard.modelSignals} />
+              )}
             </div>
           )}
         </div>

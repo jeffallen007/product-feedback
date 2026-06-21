@@ -300,6 +300,45 @@ describe("adaptBackendBundleToDashboard", () => {
     ])
   })
 
+  it("keeps selected product metadata from the backend bundle instead of mock dashboard defaults", () => {
+    const view = adaptBackendBundleToDashboard(
+      makeBundle({
+        analysisTarget: {
+          id: "target_123",
+          name: "CRM Tool",
+          description:
+            "Pipeline, reporting, and integration feedback from sales teams.",
+          createdAt: "2026-06-18T08:50:00Z",
+        },
+        sources: [
+          {
+            id: "source_demo",
+            feedbackSetId: "set_123",
+            sourceType: "demo_dataset",
+            sourceLabel: "CRM Tool Demo Dataset",
+            itemCount: 12,
+            status: "ready",
+            metadata: {},
+            createdAt: "2026-06-18T08:56:00Z",
+          },
+        ],
+      }),
+    )
+
+    expect(view.analysisTargetName).toBe("CRM Tool")
+    expect(view.dashboard.analysisContext.productName).toBe("CRM Tool")
+    expect(view.dashboard.sourceMix).toEqual([
+      {
+        sourceId: "source_demo",
+        sourceType: "demo_dataset",
+        label: "CRM Tool Demo Dataset",
+        count: 12,
+        unit: "items",
+        percent: 100,
+      },
+    ])
+  })
+
   it("derives multi-source totals and source mix percentages from backend metadata and source rows", () => {
     const view = adaptBackendBundleToDashboard(makeBundle({ dashboard: null }))
 
@@ -387,5 +426,68 @@ describe("adaptBackendBundleToDashboard", () => {
       value: "2",
     })
     expect(view.dashboard.kpis.some((kpi) => kpi.label === "Run status")).toBe(true)
+  })
+
+  it("does not backfill hidden sections for a narrowed analysis goal", () => {
+    const view = adaptBackendBundleToDashboard(
+      makeBundle({
+        feedbackSet: {
+          id: "set_123",
+          analysisTargetId: "target_123",
+          name: "June Demo Run",
+          analysisGoal: "Prioritize Roadmap Opportunities",
+          status: "completed",
+          totalFeedbackCount: 12,
+          createdAt: "2026-06-18T08:55:00Z",
+          updatedAt: "2026-06-18T09:05:00Z",
+        },
+        dashboard: {
+          ...MOCK_DASHBOARD_PAYLOAD,
+          analysisContext: {
+            ...MOCK_DASHBOARD_PAYLOAD.analysisContext,
+            goal: "Prioritize Roadmap Opportunities",
+          },
+          sentimentBreakdown: {
+            overall: [],
+            bySource: [],
+          },
+          painPoints: [],
+          featureRequests: [
+            {
+              request: "Notification controls",
+              userNeed: "Reduce noise",
+              supportingEvidence: "Demo + X",
+              priority: "High",
+            },
+          ],
+          roadmapRecommendations: [
+            {
+              phase: "Now",
+              items: [{ title: "Tune notifications", rationale: "Highest pain point." }],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(view.dashboard.analysisContext.goal).toBe(
+      "Prioritize Roadmap Opportunities",
+    )
+    expect(view.dashboard.featureRequests).toHaveLength(1)
+    expect(view.dashboard.roadmapRecommendations).toHaveLength(1)
+    expect(view.dashboard.painPoints).toEqual([])
+    expect(view.dashboard.sentimentBreakdown.overall).toEqual([])
+  })
+
+  it("preserves the full dashboard for full product feedback synthesis", () => {
+    const view = adaptBackendBundleToDashboard(makeBundle())
+
+    expect(view.dashboard.analysisContext.goal).toBe(
+      "Full Product Feedback Synthesis",
+    )
+    expect(view.dashboard.sentimentBreakdown.overall.length).toBeGreaterThan(0)
+    expect(view.dashboard.painPoints.length).toBeGreaterThan(0)
+    expect(view.dashboard.featureRequests.length).toBeGreaterThan(0)
+    expect(view.dashboard.roadmapRecommendations.length).toBeGreaterThan(0)
   })
 })

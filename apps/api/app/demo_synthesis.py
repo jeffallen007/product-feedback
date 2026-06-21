@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
@@ -33,6 +33,60 @@ class DemoDatasetProfile:
     roadmap_narrative: str
     themes: tuple[ThemeDefinition, ...]
     roadmap_order: tuple[str, ...]
+
+
+GOAL_SECTION_MAP: dict[str, set[str]] = {
+    "Full Product Feedback Synthesis": {
+        "sentimentBreakdown",
+        "classificationSummary",
+        "topThemes",
+        "painPoints",
+        "featureRequests",
+        "roadmapRecommendations",
+        "representativeQuotes",
+        "modelSignals",
+    },
+    "Identify Top Pain Points": {
+        "topThemes",
+        "painPoints",
+        "representativeQuotes",
+        "modelSignals",
+    },
+    "Find Feature Requests": {
+        "topThemes",
+        "featureRequests",
+        "representativeQuotes",
+        "modelSignals",
+    },
+    "Prioritize Roadmap Opportunities": {
+        "topThemes",
+        "featureRequests",
+        "roadmapRecommendations",
+        "representativeQuotes",
+        "modelSignals",
+    },
+    "Summarize Sentiment": {
+        "sentimentBreakdown",
+        "topThemes",
+        "representativeQuotes",
+        "modelSignals",
+    },
+    "Identify Churn / Retention Risks": {
+        "classificationSummary",
+        "topThemes",
+        "painPoints",
+        "roadmapRecommendations",
+        "representativeQuotes",
+        "modelSignals",
+    },
+    "Generate Product Strategy Recommendations": {
+        "topThemes",
+        "featureRequests",
+        "roadmapRecommendations",
+        "representativeQuotes",
+        "modelSignals",
+    },
+}
 
 
 PRODUCTIVITY_THEMES = (
@@ -446,7 +500,8 @@ def build_demo_dashboard_payload(
         total_feedback_count=total_feedback_count,
     )
 
-    return {
+    return _apply_goal_focus(
+        {
         "analysisContext": {
             "analysisRunId": analysis_run_id,
             "productName": product_name,
@@ -505,7 +560,9 @@ def build_demo_dashboard_payload(
                 "value": profile.roadmap_narrative,
             },
         ],
-    }
+        },
+        analysis_goal,
+    )
 
 
 def find_theme_matches(dataset_id: str | None, question: str) -> list[ThemeDefinition]:
@@ -845,6 +902,37 @@ def _build_executive_summary(
         f"Users still call out real strengths around {strength}. "
         f"For {analysis_goal.lower()}, the clearest recommendation is to {top_phase.lower()} while preserving the product value already visible in {profile.strength_signal.lower()}."
     )
+
+
+def _apply_goal_focus(
+    payload: dict[str, Any],
+    analysis_goal: str,
+) -> dict[str, Any]:
+    if analysis_goal == "Full Product Feedback Synthesis":
+        return payload
+
+    visible = GOAL_SECTION_MAP.get(
+        analysis_goal,
+        GOAL_SECTION_MAP["Full Product Feedback Synthesis"],
+    )
+    focused = dict(payload)
+    if "sentimentBreakdown" not in visible:
+        focused["sentimentBreakdown"] = {"overall": [], "bySource": []}
+    if "classificationSummary" not in visible:
+        focused["classificationSummary"] = []
+    if "topThemes" not in visible:
+        focused["topThemes"] = []
+    if "painPoints" not in visible:
+        focused["painPoints"] = []
+    if "featureRequests" not in visible:
+        focused["featureRequests"] = []
+    if "roadmapRecommendations" not in visible:
+        focused["roadmapRecommendations"] = []
+    if "representativeQuotes" not in visible:
+        focused["representativeQuotes"] = []
+    if "modelSignals" not in visible:
+        focused["modelSignals"] = []
+    return focused
 
 
 def _dominant_severity(counts: Counter[str], default: str) -> str:
