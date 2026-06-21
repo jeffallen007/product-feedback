@@ -35,6 +35,11 @@ export function HeroEntry({
         </p>
       </div>
 
+      {/* Architecture strip */}
+      <div className="mx-auto mt-10 max-w-3xl">
+        <ArchitectureStrip />
+      </div>
+
       {/* Entry choice */}
       <div className="mx-auto mt-10 grid max-w-3xl gap-4 sm:grid-cols-2">
         <button
@@ -84,11 +89,6 @@ export function HeroEntry({
       {/* Capabilities */}
       <div className="mx-auto mt-14 max-w-3xl">
         <CapabilityPreview />
-      </div>
-
-      {/* Architecture strip */}
-      <div className="mx-auto mt-10 max-w-3xl">
-        <ArchitectureStrip />
       </div>
     </div>
   )

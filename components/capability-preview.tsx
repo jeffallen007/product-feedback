@@ -25,14 +25,14 @@ export function CapabilityPreview() {
     <section aria-labelledby="capabilities-heading">
       <h2
         id="capabilities-heading"
-        className="text-sm font-semibold tracking-tight text-foreground"
+        className="text-center text-sm font-semibold tracking-tight text-foreground"
       >
         What the synthesis can produce
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-1 text-center text-sm text-muted-foreground">
         Every feedback set is distilled into structured roadmap intelligence.
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-4 flex flex-wrap justify-center gap-2">
         {CAPABILITIES.map((label) => {
           const Icon = CAPABILITY_ICONS[label]
           return (
