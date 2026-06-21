@@ -28,13 +28,10 @@ export function HeroEntry({
           Powered by AI agents &amp; MCP
         </Badge>
         <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-          Turn fragmented customer feedback into roadmap intelligence.
+          Let AI synthesize your customer feedback.
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
-          Let AI synthesize your customer feedback. Start from a demo product
-          or your own, then combine uploads, pasted reviews, and recent X posts
-          into one feedback set. Synthesize themes, sentiment, pain points, and
-          roadmap recommendations.
+          Turn fragmented customer feedback into roadmap intelligence.
         </p>
       </div>
 
@@ -57,8 +54,8 @@ export function HeroEntry({
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
           </h3>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-            Use realistic sample feedback and see the product in action
-            immediately.
+            Use pre-loaded sample feedback data and see a real demo of the
+            product feedback synthesis in action.
           </p>
         </button>
 
@@ -70,7 +67,7 @@ export function HeroEntry({
             <Layers className="size-5" aria-hidden="true" />
           </div>
           <h3 className="mt-4 flex items-center gap-1.5 text-base font-semibold text-foreground">
-            Build Custom Feedback Set
+            Build Your Product Feedback Synthesis
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
           </h3>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">

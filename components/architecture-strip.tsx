@@ -7,9 +7,9 @@ export function ArchitectureStrip() {
       <p className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         How it works
       </p>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+      <div className="flex items-center justify-between gap-2 overflow-x-auto whitespace-nowrap">
         {ARCHITECTURE_STEPS.map((step, i) => (
-          <div key={step} className="flex items-center gap-2">
+          <div key={step} className="flex shrink-0 items-center gap-2">
             <span
               className={`rounded-md px-2.5 py-1 text-xs font-medium ${
                 i === 0

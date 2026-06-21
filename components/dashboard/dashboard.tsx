@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { BrandMark } from "@/components/brand-mark"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SourceBadge } from "@/components/dashboard/source-badge"
 import { SourceMix } from "@/components/dashboard/source-mix"
 import { SentimentOverview } from "@/components/dashboard/sentiment-overview"
@@ -18,18 +17,14 @@ import {
 } from "@/components/dashboard/quotes-and-signals"
 import { ChatPanel } from "@/components/dashboard/chat-panel"
 import {
-  DASHBOARD_ALERTS,
-  DASHBOARD_SOURCE_FILTER_TO_TYPE,
-  DASHBOARD_SOURCE_TABS,
   type ChatMessage,
-  type AnalysisSourceKey,
 } from "@/lib/mocks/dashboard"
 import type { ChatScope, DashboardPayload } from "@/lib/types/contracts"
 import {
   adaptBackendBundleToDashboard,
   type BackendDashboardViewModel,
 } from "@/lib/services/bundle-dashboard-adapter"
-import { SOURCE_TAG_BY_TYPE, type SourceTag } from "@/lib/types/workflow"
+import type { SourceTag } from "@/lib/types/workflow"
 import { getAnalysisRunBundle } from "@/lib/services/analysis-service"
 import {
   Plus,
@@ -41,7 +36,6 @@ import {
   ListChecks,
   Clock,
   Cpu,
-  AlertTriangle,
   Loader2,
 } from "lucide-react"
 
@@ -74,7 +68,6 @@ export function Dashboard({
   analysisRunId: string
   onNewAnalysis: () => void
 }) {
-  const [activeSource, setActiveSource] = useState<AnalysisSourceKey>("all")
   const [chatOpen, setChatOpen] = useState(false)
   const [backendView, setBackendView] =
     useState<BackendDashboardViewModel | null>(null)
@@ -209,10 +202,6 @@ export function Dashboard({
     backendView?.sourceTags ??
     (dashboard.sourceMix.map((source) => source.label) as SourceTag[])
   const dataMode = backendView?.dataMode ?? "mock"
-  const activeSourceTag =
-    activeSource === "all"
-      ? "All Sources"
-      : SOURCE_TAG_BY_TYPE[DASHBOARD_SOURCE_FILTER_TO_TYPE[activeSource]]
   const contextItems = [
     {
       icon: Target,
@@ -239,13 +228,6 @@ export function Dashboard({
       value: backendView?.runTimestamp ?? dashboard.analysisContext.lastRunAt,
     },
   ]
-
-  const noData =
-    activeSource !== "all" &&
-    !dashboard.sourceMix.some(
-      (source) =>
-        source.sourceType === DASHBOARD_SOURCE_FILTER_TO_TYPE[activeSource],
-    )
 
   return (
     <div className="min-h-svh bg-background">
@@ -358,112 +340,48 @@ export function Dashboard({
             />
           </div>
 
-          {/* Source filter tabs */}
-          <div className="mb-5">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">
-              Filter analysis by source
-            </p>
-            <Tabs
-              value={activeSource}
-              onValueChange={(v) => setActiveSource(v as AnalysisSourceKey)}
-            >
-              <TabsList className="flex h-auto flex-wrap justify-start gap-1 bg-secondary/60">
-                {DASHBOARD_SOURCE_TABS.map((tab) => (
-                  <TabsTrigger
-                    key={tab.key}
-                    value={tab.key}
-                    className="text-xs data-[state=active]:bg-card"
-                  >
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
-          </div>
-
-          {noData ? (
-            <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
-              <span className="flex size-11 items-center justify-center rounded-xl border border-border bg-secondary">
-                <Layers
-                  className="size-5 text-muted-foreground"
+          <div className="space-y-6">
+            <Card className="p-5">
+              <div className="flex items-center gap-2">
+                <Sparkles
+                  className="size-4 text-primary"
                   aria-hidden="true"
                 />
-              </span>
-              <p className="mt-3 text-sm font-medium text-foreground">
-                No feedback from {activeSourceTag}
+                <h3 className="text-sm font-semibold text-foreground">
+                  Executive Summary
+                </h3>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-foreground text-pretty">
+                {dashboard.executiveSummary}
               </p>
-              <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-                This feedback set does not include a {activeSourceTag} source.
-                Start a new analysis to add one, or switch back to a source with
-                data.
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4"
-                onClick={() => setActiveSource("all")}
-              >
-                View all sources
-              </Button>
             </Card>
-          ) : (
-            <div className="space-y-6">
-              {activeSource === "x" && (
-                <Card className="flex items-start gap-3 border-chart-4/30 bg-chart-4/8 p-4">
-                  <AlertTriangle
-                    className="mt-0.5 size-4 shrink-0 text-chart-4"
-                    aria-hidden="true"
-                  />
-                  <p className="text-xs leading-relaxed text-foreground">
-                    <span className="font-semibold">Heads up:</span>{" "}
-                    {DASHBOARD_ALERTS.xRateLimited}
-                  </p>
-                </Card>
-              )}
 
-              {/* Executive summary */}
-              <Card className="p-5">
-                <div className="flex items-center gap-2">
-                  <Sparkles
-                    className="size-4 text-primary"
-                    aria-hidden="true"
-                  />
-                  <h3 className="text-sm font-semibold text-foreground">
-                    Executive Summary
-                  </h3>
-                </div>
-                <p className="mt-3 text-sm leading-relaxed text-foreground text-pretty">
-                  {dashboard.executiveSummary}
-                </p>
-              </Card>
-
-              {hasSentimentData(dashboard) && (
-                <SentimentOverview
-                  sentimentBreakdown={dashboard.sentimentBreakdown}
-                />
-              )}
-              {dashboard.topThemes.length > 0 && (
-                <TopThemes themes={dashboard.topThemes} />
-              )}
-              {dashboard.painPoints.length > 0 && (
-                <PainPointCards painPoints={dashboard.painPoints} />
-              )}
-              {dashboard.featureRequests.length > 0 && (
-                <FeatureRequests featureRequests={dashboard.featureRequests} />
-              )}
-              {dashboard.roadmapRecommendations.length > 0 && (
-                <RoadmapRecommendations
-                  roadmap={dashboard.roadmapRecommendations}
-                />
-              )}
-              {dashboard.representativeQuotes.length > 0 && (
-                <RepresentativeQuotes quotes={dashboard.representativeQuotes} />
-              )}
-              {dashboard.modelSignals.length > 0 && (
-                <ModelSignals signals={dashboard.modelSignals} />
-              )}
-            </div>
-          )}
+            {hasSentimentData(dashboard) && (
+              <SentimentOverview
+                sentimentBreakdown={dashboard.sentimentBreakdown}
+              />
+            )}
+            {dashboard.topThemes.length > 0 && (
+              <TopThemes themes={dashboard.topThemes} />
+            )}
+            {dashboard.painPoints.length > 0 && (
+              <PainPointCards painPoints={dashboard.painPoints} />
+            )}
+            {dashboard.featureRequests.length > 0 && (
+              <FeatureRequests featureRequests={dashboard.featureRequests} />
+            )}
+            {dashboard.roadmapRecommendations.length > 0 && (
+              <RoadmapRecommendations
+                roadmap={dashboard.roadmapRecommendations}
+              />
+            )}
+            {dashboard.representativeQuotes.length > 0 && (
+              <RepresentativeQuotes quotes={dashboard.representativeQuotes} />
+            )}
+            {dashboard.modelSignals.length > 0 && (
+              <ModelSignals signals={dashboard.modelSignals} />
+            )}
+          </div>
         </div>
 
         {/* Desktop chat panel */}
