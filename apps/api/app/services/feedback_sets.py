@@ -104,7 +104,7 @@ class FeedbackSetService:
                     "dataset_path": str(demo_dataset.csv_path.relative_to(BACKEND_ROOT)),
                     "source_origin": "demo_dataset",
                     "total_record_count": total_record_count,
-                    "sampled_record_count": inserted_item_count,
+                    "processed_record_count": inserted_item_count,
                     "persisted_source_type": "review",
                     "persisted_source_label": source_label,
                 },

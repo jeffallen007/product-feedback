@@ -2,29 +2,16 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sparkles, Send, MessageSquarePlus } from "lucide-react"
 import {
-  CHAT_SCOPE_OPTIONS,
   SUGGESTED_PROMPTS,
   type ChatMessage,
 } from "@/lib/mocks/dashboard"
 import type { ChatRequest, ChatResponse } from "@/lib/types/contracts"
 import { askAnalysisQuestion } from "@/lib/services/analysis-service"
 
-function toScopeLabel(scope: ChatRequest["scope"]): string {
-  return (
-    CHAT_SCOPE_OPTIONS.find((option) => option.value === scope)?.label ??
-    "All Sources"
-  )
-}
+const DEFAULT_CHAT_SCOPE: ChatRequest["scope"] = "all"
 
 function toAssistantMessage(response: ChatResponse): ChatMessage {
   return {
@@ -43,7 +30,6 @@ export function ChatPanel({
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages)
   const [input, setInput] = useState("")
-  const [scope, setScope] = useState<ChatRequest["scope"]>("all")
   const [thinking, setThinking] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -66,7 +52,6 @@ export function ChatPanel({
     const userMsg: ChatMessage = {
       role: "user",
       content: trimmed,
-      scope: toScopeLabel(scope),
     }
     setMessages((prev) => [...prev, userMsg])
     setInput("")
@@ -75,7 +60,7 @@ export function ChatPanel({
       const response = await askAnalysisQuestion({
         analysisRunId,
         question: trimmed,
-        scope,
+        scope: DEFAULT_CHAT_SCOPE,
       })
       setMessages((prev) => [...prev, toAssistantMessage(response)])
     } catch (error) {
@@ -177,27 +162,7 @@ export function ChatPanel({
       </ScrollArea>
 
       {/* Composer */}
-      <div className="border-t border-border bg-card px-4 py-3">
-        <div className="mb-2 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Answer using:</span>
-          <Select
-            value={scope}
-            onValueChange={(value) => {
-              if (value) setScope(value as ChatRequest["scope"])
-            }}
-          >
-            <SelectTrigger className="h-7 w-auto gap-1.5 border-border bg-secondary px-2.5 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {CHAT_SCOPE_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="border-t border-border bg-card px-4 py-4">
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -214,16 +179,16 @@ export function ChatPanel({
                 send(input)
               }
             }}
-            rows={1}
+            rows={3}
             placeholder="Ask a follow-up about themes, sources, roadmap priorities, or evidence…"
-            className="max-h-28 min-h-[40px] flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="max-h-48 min-h-[120px] flex-1 resize-y rounded-lg border border-input bg-background px-3 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <Button
             type="submit"
             size="icon"
             disabled={!input.trim() || thinking}
             aria-label="Send message"
-            className="size-10 shrink-0"
+            className="size-12 shrink-0"
           >
             <Send className="size-4" aria-hidden="true" />
           </Button>
@@ -246,11 +211,6 @@ function ChatBubble({
         <div className="max-w-[88%] rounded-lg rounded-tr-sm bg-primary px-3 py-2 text-sm leading-relaxed text-primary-foreground">
           {message.content}
         </div>
-        {message.scope && message.scope !== "All Sources" && (
-          <span className="mt-1 text-[11px] text-muted-foreground">
-            Scope: {message.scope}
-          </span>
-        )}
       </div>
     )
   }

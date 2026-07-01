@@ -225,9 +225,9 @@ def test_feedback_set_service_adds_demo_source_and_updates_total_count() -> None
     ]
     assert response.source.feedback_set_id == "set_456"
     assert response.source.source_type == "review"
-    assert response.source.item_count == 75
+    assert response.source.item_count == 750
     assert response.source.source_label == "google_play"
-    assert len(client.inserted_feedback_items) == 75
+    assert len(client.inserted_feedback_items) == 750
     assert all(item["feedback_set_id"] == "set_456" for item in client.inserted_feedback_items)
     assert all(item["source_id"] == "source_789" for item in client.inserted_feedback_items)
     assert all(item["source_type"] == "review" for item in client.inserted_feedback_items)
@@ -238,7 +238,7 @@ def test_feedback_set_service_adds_demo_source_and_updates_total_count() -> None
     assert client.inserted_feedback_items[0]["metadata_json"]["real_app_name"] == "Notion"
     update_call = client.calls[-1][1]
     assert isinstance(update_call, dict)
-    assert update_call["payload"]["total_feedback_count"] == 80
+    assert update_call["payload"]["total_feedback_count"] == 755
 
 
 def test_demo_source_uses_strava_dataset_only_for_fitness_app() -> None:

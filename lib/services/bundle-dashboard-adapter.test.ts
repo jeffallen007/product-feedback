@@ -305,9 +305,9 @@ describe("adaptBackendBundleToDashboard", () => {
       makeBundle({
         analysisTarget: {
           id: "target_123",
-          name: "CRM Tool",
+          name: "CRM Tool (HubSpot)",
           description:
-            "Pipeline, reporting, and integration feedback from sales teams.",
+            "A B2B CRM tool with AI capabilities for sales and marketing teams.",
           createdAt: "2026-06-18T08:50:00Z",
         },
         sources: [
@@ -325,8 +325,8 @@ describe("adaptBackendBundleToDashboard", () => {
       }),
     )
 
-    expect(view.analysisTargetName).toBe("CRM Tool")
-    expect(view.dashboard.analysisContext.productName).toBe("CRM Tool")
+    expect(view.analysisTargetName).toBe("CRM Tool (HubSpot)")
+    expect(view.dashboard.analysisContext.productName).toBe("CRM Tool (HubSpot)")
     expect(view.dashboard.sourceMix).toEqual([
       {
         sourceId: "source_demo",

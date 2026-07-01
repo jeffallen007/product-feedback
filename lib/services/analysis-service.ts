@@ -536,18 +536,18 @@ export function buildDemoReviewState(
 
   return {
     product: {
-      name: demoProduct?.label ?? "Productivity Tool",
+      name: demoProduct?.label ?? "Productivity Tool (Notion)",
       description:
         demoProduct?.description ??
-        "Tasks, notifications, and collaboration feedback from teams.",
+        "An all-in-one digital workspace that combines note-taking, project management, and more.",
     },
     sources: [
       {
         id: `demo-${request.demoProductId}`,
         sourceType: "demo_dataset",
         sourceTag: SOURCE_TAG_BY_TYPE.demo_dataset,
-        sourceLabel: `${demoProduct?.label ?? "Productivity Tool"} Demo Dataset`,
-        itemCount: demoProduct?.count ?? 482,
+        sourceLabel: `${demoProduct?.label ?? "Productivity Tool (Notion)"} Demo Dataset`,
+        itemCount: demoProduct?.count ?? 750,
         status: "Ready",
         mockConfig: { demoProductId: request.demoProductId },
       },

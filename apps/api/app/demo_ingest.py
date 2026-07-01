@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,7 +8,6 @@ from typing import Any
 
 from app.demo_datasets import BACKEND_ROOT, DemoDatasetDefinition
 
-DEMO_SAMPLE_SIZE = 75
 REVIEW_SOURCE_TYPE = "review"
 REVIEW_SOURCE_LABEL = "google_play"
 
@@ -28,11 +26,8 @@ class NormalizedDemoReview:
 
 def load_demo_reviews(
     dataset: DemoDatasetDefinition,
-    *,
-    sample_size: int = DEMO_SAMPLE_SIZE,
 ) -> tuple[list[NormalizedDemoReview], int]:
     rows = _read_demo_csv(dataset.csv_path)
-    sampled_rows = _sample_rows(rows, sample_size=sample_size)
     normalized_reviews = [
         NormalizedDemoReview(
             id=index,
@@ -44,7 +39,7 @@ def load_demo_reviews(
             username=_clean_text(row.get("username")),
             normalized_text=_normalize_review_text(row["review_text"]),
         )
-        for index, row in enumerate(sampled_rows, start=1)
+        for index, row in enumerate(_sorted_rows(rows), start=1)
     ]
     return normalized_reviews, len(rows)
 
@@ -85,66 +80,6 @@ def _read_demo_csv(csv_path: Path) -> list[dict[str, str]]:
             for row in reader
             if _clean_text(row.get("review_text"))
         ]
-
-
-def _sample_rows(
-    rows: list[dict[str, str]],
-    *,
-    sample_size: int,
-) -> list[dict[str, str]]:
-    if len(rows) <= sample_size:
-        return _sorted_rows(rows)
-
-    grouped: dict[int, list[dict[str, str]]] = defaultdict(list)
-    unrated: list[dict[str, str]] = []
-    for row in _sorted_rows(rows):
-        rating = _parse_rating(row.get("star_rating"))
-        if rating is None:
-            unrated.append(row)
-            continue
-        grouped[rating].append(row)
-
-    targets = _allocate_balanced_counts(grouped, sample_size)
-    selected: list[dict[str, str]] = []
-    selected_keys: set[tuple[str, str, str]] = set()
-
-    for rating in range(1, 6):
-        for row in grouped.get(rating, [])[: targets.get(rating, 0)]:
-            selected.append(row)
-            selected_keys.add(_row_key(row))
-
-    if len(selected) < sample_size:
-        leftovers = [
-            row for row in _sorted_rows(rows) if _row_key(row) not in selected_keys
-        ]
-        selected.extend(leftovers[: sample_size - len(selected)])
-
-    return _sorted_rows(selected[:sample_size])
-
-
-def _allocate_balanced_counts(
-    grouped: dict[int, list[dict[str, str]]],
-    sample_size: int,
-) -> dict[int, int]:
-    ratings = [1, 2, 3, 4, 5]
-    base = sample_size // len(ratings)
-    counts = {rating: min(base, len(grouped.get(rating, []))) for rating in ratings}
-    remaining = sample_size - sum(counts.values())
-
-    while remaining > 0:
-        allocated = False
-        for rating in ratings:
-            available = len(grouped.get(rating, []))
-            if counts[rating] < available:
-                counts[rating] += 1
-                remaining -= 1
-                allocated = True
-                if remaining == 0:
-                    break
-        if not allocated:
-            break
-
-    return counts
 
 
 def _sorted_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -201,11 +136,3 @@ def _clean_text(value: str | None) -> str | None:
         return None
     cleaned = value.strip()
     return cleaned or None
-
-
-def _row_key(row: dict[str, str]) -> tuple[str, str, str]:
-    return (
-        row.get("date", ""),
-        row.get("username", ""),
-        row.get("review_text", ""),
-    )

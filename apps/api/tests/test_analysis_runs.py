@@ -367,8 +367,8 @@ def test_create_placeholder_run_persists_analysis_run_and_dashboard_summary() ->
 
 def test_create_placeholder_run_uses_selected_fitness_product_context() -> None:
     client = FakeAnalysisSupabaseClient(
-        analysis_target_name="Fitness App",
-        analysis_target_description="Workout tracking, subscriptions, and device sync feedback.",
+        analysis_target_name="Fitness App (Strava)",
+        analysis_target_description="A consumer fitness app for tracking running, cycling, hiking, and other types of workouts.",
         source_label="google_play",
         demo_product_id="fitness_app",
     )
@@ -378,15 +378,15 @@ def test_create_placeholder_run_uses_selected_fitness_product_context() -> None:
     dashboard_insert = next(call[1] for call in client.calls if call[0] == "dashboard_summaries")
 
     assert response.analysis_run.metadata["analysis_goal"] == "Full Product Feedback Synthesis"
-    assert dashboard_insert["summary_payload"]["analysisContext"]["productName"] == "Fitness App"
-    assert dashboard_insert["summary_payload"]["executiveSummary"].startswith("Fitness App feedback suggests")
+    assert dashboard_insert["summary_payload"]["analysisContext"]["productName"] == "Fitness App (Strava)"
+    assert dashboard_insert["summary_payload"]["executiveSummary"].startswith("Fitness App (Strava) feedback suggests")
     assert dashboard_insert["summary_payload"]["topThemes"][0]["name"] != "Notification overload"
 
 
 def test_create_placeholder_run_uses_selected_crm_product_context() -> None:
     client = FakeAnalysisSupabaseClient(
-        analysis_target_name="CRM Tool",
-        analysis_target_description="Pipeline, reporting, and integration feedback from sales teams.",
+        analysis_target_name="CRM Tool (HubSpot)",
+        analysis_target_description="A B2B CRM tool with AI capabilities for sales and marketing teams.",
         source_label="google_play",
         demo_product_id="crm_tool",
     )
@@ -395,7 +395,7 @@ def test_create_placeholder_run_uses_selected_crm_product_context() -> None:
     service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
     dashboard_insert = next(call[1] for call in client.calls if call[0] == "dashboard_summaries")
 
-    assert dashboard_insert["summary_payload"]["analysisContext"]["productName"] == "CRM Tool"
+    assert dashboard_insert["summary_payload"]["analysisContext"]["productName"] == "CRM Tool (HubSpot)"
     assert dashboard_insert["summary_payload"]["topThemes"][0]["name"] != "Notification overload"
 
 

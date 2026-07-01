@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { Check, Loader2 } from "lucide-react"
 import { BrandMark } from "@/components/brand-mark"
-import { ArchitectureStrip } from "@/components/architecture-strip"
 import { PROCESSING_STEPS } from "@/lib/mocks/dashboard"
 
 export function ProcessingState({
@@ -112,10 +111,6 @@ export function ProcessingState({
             )
           })}
         </ol>
-
-        <div className="mt-8">
-          <ArchitectureStrip />
-        </div>
       </div>
     </main>
   )
