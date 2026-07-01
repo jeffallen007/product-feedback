@@ -42,8 +42,8 @@ function makeBundle(
       {
         id: "source_demo",
         feedbackSetId: "set_123",
-        sourceType: "demo_dataset",
-        sourceLabel: "Pulse Fitness Demo Dataset",
+        sourceType: "review",
+        sourceLabel: "google_play",
         itemCount: 8,
         status: "ready",
         metadata: {},
@@ -73,7 +73,7 @@ function makeBundle(
       executiveSummary: "Backend-generated executive summary.",
       sentimentBreakdown: {
         overall: [{ label: "Positive", value: 50 }],
-        bySource: [{ sourceLabel: "Pulse Fitness Demo Dataset", negativePercent: 30 }],
+        bySource: [{ sourceLabel: "google_play", negativePercent: 30 }],
       },
       classificationSummary: [{ category: "ux_issue", count: 5, percent: 42 }],
       topThemes: [
@@ -99,7 +99,7 @@ function makeBundle(
           representativeQuotes: [
             {
               text: "There are too many notifications.",
-              sourceLabel: "Pulse Fitness Demo Dataset",
+              sourceLabel: "google_play",
             },
           ],
         },
@@ -121,7 +121,7 @@ function makeBundle(
       representativeQuotes: [
         {
           text: "Please let me tune alerts.",
-          sourceLabel: "Pulse Fitness Demo Dataset",
+          sourceLabel: "google_play",
           themeName: "Notification overload",
           category: "feature_request",
         },
@@ -263,7 +263,7 @@ describe("adaptBackendBundleToDashboard", () => {
       MOCK_DASHBOARD_PAYLOAD.classificationSummary,
     )
     expect(view.dashboard.representativeQuotes[0].sourceLabel).toBe(
-      "Pulse Fitness Demo Dataset",
+      "google_play",
     )
   })
 
@@ -273,8 +273,8 @@ describe("adaptBackendBundleToDashboard", () => {
         {
           id: "source_demo",
           feedbackSetId: "set_123",
-          sourceType: "demo_dataset",
-          sourceLabel: "Pulse Fitness Demo Dataset",
+          sourceType: "review",
+          sourceLabel: "google_play",
           itemCount: 12,
           status: "ready",
           metadata: {},
@@ -287,14 +287,14 @@ describe("adaptBackendBundleToDashboard", () => {
     const view = adaptBackendBundleToDashboard(bundle)
 
     expect(view.sourceCount).toBe(1)
-    expect(view.sourceTags).toEqual(["Demo Dataset"])
+    expect(view.sourceTags).toEqual(["Google Play"])
     expect(view.dashboard.sourceMix).toEqual([
       {
         sourceId: "source_demo",
-        sourceType: "demo_dataset",
-        label: "Pulse Fitness Demo Dataset",
+        sourceType: "review",
+        label: "google_play",
         count: 12,
-        unit: "items",
+        unit: "reviews",
         percent: 100,
       },
     ])
@@ -314,8 +314,8 @@ describe("adaptBackendBundleToDashboard", () => {
           {
             id: "source_demo",
             feedbackSetId: "set_123",
-            sourceType: "demo_dataset",
-            sourceLabel: "CRM Tool Demo Dataset",
+            sourceType: "review",
+            sourceLabel: "google_play",
             itemCount: 12,
             status: "ready",
             metadata: {},
@@ -330,10 +330,10 @@ describe("adaptBackendBundleToDashboard", () => {
     expect(view.dashboard.sourceMix).toEqual([
       {
         sourceId: "source_demo",
-        sourceType: "demo_dataset",
-        label: "CRM Tool Demo Dataset",
+        sourceType: "review",
+        label: "google_play",
         count: 12,
-        unit: "items",
+        unit: "reviews",
         percent: 100,
       },
     ])
@@ -347,10 +347,10 @@ describe("adaptBackendBundleToDashboard", () => {
     expect(view.dashboard.sourceMix).toEqual([
       {
         sourceId: "source_demo",
-        sourceType: "demo_dataset",
-        label: "Pulse Fitness Demo Dataset",
+        sourceType: "review",
+        label: "google_play",
         count: 8,
-        unit: "items",
+        unit: "reviews",
         percent: 67,
       },
       {

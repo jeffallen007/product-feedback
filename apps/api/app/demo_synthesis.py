@@ -395,6 +395,11 @@ def infer_demo_feedback_attributes(
     topic = normalized_metadata.get("topic")
     rating = _coerce_number(item.get("rating"))
     theme = _find_theme_by_topic(profile, topic)
+    if theme is None:
+        theme = _find_theme_by_text(
+            profile,
+            str(item.get("normalized_text") or item.get("raw_text") or ""),
+        )
 
     if theme is None:
         category = "positive_feedback" if rating is not None and rating >= 4 else "unknown"
@@ -590,6 +595,29 @@ def _find_theme_by_topic(
     return None
 
 
+def _find_theme_by_text(
+    profile: DemoDatasetProfile | None,
+    text: str,
+) -> ThemeDefinition | None:
+    if profile is None:
+        return None
+    normalized_text = text.lower()
+    best_theme: ThemeDefinition | None = None
+    best_score = 0
+    for theme in profile.themes:
+        tokens = {
+            theme.name.lower(),
+            *[alias.lower() for alias in theme.aliases],
+            *[topic.lower().replace("_", " ") for topic in theme.topics],
+            theme.product_area.lower(),
+        }
+        score = sum(1 for token in tokens if token and token in normalized_text)
+        if score > best_score:
+            best_score = score
+            best_theme = theme
+    return best_theme if best_score > 0 else None
+
+
 def _normalize_feedback_item(dataset_id: str, item: dict[str, Any]) -> dict[str, Any]:
     inferred = infer_demo_feedback_attributes(dataset_id, item)
     normalized = dict(item)
@@ -612,6 +640,7 @@ def _build_source_mix(
     total_feedback_count: int,
 ) -> list[dict[str, Any]]:
     unit_by_type = {
+        "review": "reviews",
         "demo_dataset": "items",
         "csv_upload": "items",
         "pasted_text": "items",

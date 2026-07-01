@@ -19,6 +19,7 @@ const FALLBACK_PROCESSING_METHOD =
   "Backend Demo Bundle + Placeholder Dashboard Synthesis"
 
 const SOURCE_UNIT_BY_TYPE: Record<SourceType, string> = {
+  review: "reviews",
   demo_dataset: "items",
   csv_upload: "items",
   pasted_text: "items",
@@ -26,6 +27,7 @@ const SOURCE_UNIT_BY_TYPE: Record<SourceType, string> = {
 }
 
 const SOURCE_NEGATIVE_PERCENT_BY_TYPE: Record<SourceType, number> = {
+  review: 44,
   demo_dataset: 31,
   csv_upload: 36,
   pasted_text: 42,

@@ -124,7 +124,7 @@ export interface GetAnalysisRunBundleResponse {
 export interface AskAnalysisQuestionRequest {
   analysisRunId: string
   question: string
-  scope: "all" | "demo_dataset" | "csv_upload" | "pasted_text" | "x_search"
+  scope: ChatScope
 }
 
 export interface AskAnalysisQuestionResponse extends ChatResponse {}

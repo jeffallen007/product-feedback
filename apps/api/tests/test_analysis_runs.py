@@ -24,7 +24,7 @@ class FakeAnalysisSupabaseClient:
         analysis_target_name: str = "Pulse Fitness",
         analysis_target_description: str = "A mobile fitness coaching app for guided routines.",
         analysis_goal: str = "Full Product Feedback Synthesis",
-        source_label: str = "Productivity Tool Demo Dataset",
+        source_label: str = "google_play",
         demo_product_id: str = "productivity_tool",
         dashboard_summary: dict[str, object] | None = None,
         fail_dashboard_insert: bool = False,
@@ -100,7 +100,7 @@ class FakeAnalysisSupabaseClient:
                     {
                         "id": "source_789",
                         "feedback_set_id": filters["feedback_set_id"],
-                        "source_type": "demo_dataset",
+                        "source_type": "review",
                         "source_label": self.source_label,
                         "item_count": self.total_feedback_count,
                         "status": "ready",
@@ -120,7 +120,7 @@ class FakeAnalysisSupabaseClient:
                     "raw_text": self._feedback_item_text(index),
                     "normalized_text": self._feedback_item_normalized_text(index),
                     "rating": self._feedback_item_rating(index),
-                    "source_type": "demo_dataset",
+                    "source_type": "review",
                     "source_label": self.source_label,
                     "metadata_json": self._feedback_item_metadata(index),
                 }
@@ -223,10 +223,10 @@ def make_dashboard_summary() -> dict[str, object]:
             "sourceMix": [
                 {
                     "sourceId": "source_789",
-                    "label": "Productivity Tool Demo Dataset",
-                    "sourceType": "demo_dataset",
+                    "label": "google_play",
+                    "sourceType": "review",
                     "count": 12,
-                    "unit": "items",
+                    "unit": "reviews",
                     "percent": 100,
                 }
             ],
@@ -239,7 +239,7 @@ def make_dashboard_summary() -> dict[str, object]:
                     {"label": "Negative", "value": 40},
                 ],
                 "bySource": [
-                    {"sourceLabel": "Productivity Tool Demo Dataset", "negativePercent": 40}
+                    {"sourceLabel": "google_play", "negativePercent": 40}
                 ],
             },
             "classificationSummary": [{"category": "ux_issue", "count": 4, "percent": 33}],
@@ -266,7 +266,7 @@ def make_dashboard_summary() -> dict[str, object]:
                     "representativeQuotes": [
                         {
                             "text": "Planning repeats feel tedious.",
-                            "sourceLabel": "Productivity Tool Demo Dataset",
+                            "sourceLabel": "google_play",
                         }
                     ],
                 }
@@ -288,7 +288,7 @@ def make_dashboard_summary() -> dict[str, object]:
             "representativeQuotes": [
                 {
                     "text": "Planning repeats feel tedious.",
-                    "sourceLabel": "Productivity Tool Demo Dataset",
+                    "sourceLabel": "google_play",
                     "themeName": "Notification overload",
                     "category": "ux_issue",
                 }
@@ -316,7 +316,7 @@ def make_chat_history() -> list[dict[str, object]]:
                 {
                     "feedbackItemId": "item_1",
                     "text": "Notifications are too aggressive. I get pinged for minor status changes all day.",
-                    "sourceLabel": "Productivity Tool Demo Dataset",
+                    "sourceLabel": "google_play",
                     "themeName": "Notification overload",
                     "category": "ux_issue",
                 }
@@ -369,7 +369,7 @@ def test_create_placeholder_run_uses_selected_fitness_product_context() -> None:
     client = FakeAnalysisSupabaseClient(
         analysis_target_name="Fitness App",
         analysis_target_description="Workout tracking, subscriptions, and device sync feedback.",
-        source_label="Fitness App Demo Dataset",
+        source_label="google_play",
         demo_product_id="fitness_app",
     )
     service = AnalysisRunService(client)  # type: ignore[arg-type]
@@ -387,7 +387,7 @@ def test_create_placeholder_run_uses_selected_crm_product_context() -> None:
     client = FakeAnalysisSupabaseClient(
         analysis_target_name="CRM Tool",
         analysis_target_description="Pipeline, reporting, and integration feedback from sales teams.",
-        source_label="CRM Tool Demo Dataset",
+        source_label="google_play",
         demo_product_id="crm_tool",
     )
     service = AnalysisRunService(client)  # type: ignore[arg-type]
@@ -401,7 +401,7 @@ def test_create_placeholder_run_uses_selected_crm_product_context() -> None:
 
 def test_create_placeholder_run_only_includes_selected_demo_dataset_in_source_mix() -> None:
     client = FakeAnalysisSupabaseClient(
-        source_label="Fitness App Demo Dataset",
+        source_label="google_play",
         demo_product_id="fitness_app",
     )
     service = AnalysisRunService(client)  # type: ignore[arg-type]
@@ -413,10 +413,10 @@ def test_create_placeholder_run_only_includes_selected_demo_dataset_in_source_mi
     assert source_mix == [
         {
             "sourceId": "source_789",
-            "sourceType": "demo_dataset",
-            "label": "Fitness App Demo Dataset",
+            "sourceType": "review",
+            "label": "google_play",
             "count": 12,
-            "unit": "items",
+            "unit": "reviews",
             "percent": 100,
         }
     ]
@@ -425,7 +425,7 @@ def test_create_placeholder_run_only_includes_selected_demo_dataset_in_source_mi
 def test_create_placeholder_run_applies_non_full_goal_focus() -> None:
     client = FakeAnalysisSupabaseClient(
         analysis_goal="Prioritize Roadmap Opportunities",
-        source_label="CRM Tool Demo Dataset",
+        source_label="google_play",
         demo_product_id="crm_tool",
     )
     service = AnalysisRunService(client)  # type: ignore[arg-type]
@@ -524,7 +524,7 @@ def test_ask_placeholder_question_persists_user_and_assistant_messages() -> None
     assert response.answer.startswith("Notification overload is one of the strongest signals in this run")
     assert response.scope_used == "all"
     assert len(response.evidence) == 3
-    assert response.evidence[0].source_label == "Productivity Tool Demo Dataset"
+    assert response.evidence[0].source_label == "google_play"
     assert response.user_message.role == "user"
     assert response.assistant_message.role == "assistant"
     assert response.assistant_message.follow_up_suggestions == [
@@ -642,7 +642,7 @@ def test_get_analysis_run_bundle_returns_complete_payload() -> None:
     assert response.feedback_set.id == "set_456"
     assert response.analysis_target.id == "target_123"
     assert len(response.sources) == 1
-    assert response.sources[0].source_label == "Productivity Tool Demo Dataset"
+    assert response.sources[0].source_label == "google_play"
     assert response.dashboard is not None
     assert response.dashboard.executive_summary == "Placeholder summary."
     assert [message.id for message in response.chat_history] == ["message_1", "message_2"]

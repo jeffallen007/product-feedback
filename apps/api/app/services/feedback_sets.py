@@ -1,6 +1,9 @@
 from app.clients.supabase import SupabaseRestClient
-from app.demo_feedback import DEMO_FEEDBACK_FIXTURES
-from app.demo_datasets import DEMO_DATASETS
+from app.demo_datasets import DEMO_DATASETS, REPO_ROOT
+from app.demo_ingest import (
+    load_demo_reviews,
+    normalized_review_metadata,
+)
 from app.demo_synthesis import infer_demo_feedback_attributes
 from app.errors import FeedbackSetNotFoundError, InvalidDemoProductError, SupabaseInsertError
 from app.schemas.feedback_sets import (
@@ -69,9 +72,9 @@ class FeedbackSetService:
             raise InvalidDemoProductError(
                 f"Unknown demo product id '{request.demo_product_id}'.",
             )
-        demo_feedback_items = DEMO_FEEDBACK_FIXTURES[request.demo_product_id]
+        demo_feedback_items, total_record_count = load_demo_reviews(demo_dataset)
         inserted_item_count = len(demo_feedback_items)
-        source_label = f"{demo_dataset.label} Demo Dataset"
+        source_label = "google_play"
 
         try:
             feedback_set_row = self._supabase.fetch_single_row(
@@ -89,32 +92,52 @@ class FeedbackSetService:
             "data_sources",
             {
                 "feedback_set_id": feedback_set_id,
-                "source_type": "demo_dataset",
+                "source_type": "review",
                 "source_label": source_label,
                 "item_count": inserted_item_count,
                 "status": "ready",
                 "metadata_json": {
                     "demo_product_id": demo_dataset.id,
+                    "demo_product_label": demo_dataset.label,
                     "description": demo_dataset.description,
-                    "fixture_record_count": inserted_item_count,
+                    "real_app_name": demo_dataset.real_app_name,
+                    "dataset_path": str(demo_dataset.csv_path.relative_to(REPO_ROOT)),
+                    "source_origin": "demo_dataset",
+                    "total_record_count": total_record_count,
+                    "sampled_record_count": inserted_item_count,
+                    "persisted_source_type": "review",
+                    "persisted_source_label": source_label,
                 },
             },
         )
         feedback_item_rows = []
         for item in demo_feedback_items:
-            inferred = infer_demo_feedback_attributes(demo_dataset.id, item)
+            metadata_json = normalized_review_metadata(
+                dataset=demo_dataset,
+                review=item,
+                total_record_count=total_record_count,
+            )
+            inferred = infer_demo_feedback_attributes(
+                demo_dataset.id,
+                {
+                    "rating": item.rating,
+                    "raw_text": item.feedback_text,
+                    "normalized_text": item.normalized_text,
+                    "metadata_json": metadata_json,
+                },
+            )
             feedback_item_rows.append(
                 {
                     "feedback_set_id": feedback_set_id,
                     "source_id": source_row["id"],
-                    "source_type": "demo_dataset",
+                    "source_type": item.source_type,
                     "source_label": source_label,
-                    "raw_text": item["raw_text"],
-                    "normalized_text": item["normalized_text"],
-                    "rating": item.get("rating"),
-                    "feedback_date": item.get("feedback_date"),
-                    "author_handle": item.get("author_handle"),
-                    "url": item.get("url"),
+                    "raw_text": item.feedback_text,
+                    "normalized_text": item.normalized_text,
+                    "rating": item.rating,
+                    "feedback_date": item.created_at,
+                    "author_handle": item.username,
+                    "url": None,
                     "category": inferred["category"],
                     "sentiment": inferred["sentiment"],
                     "severity": inferred["severity"],

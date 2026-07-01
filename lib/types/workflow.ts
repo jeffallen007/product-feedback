@@ -10,6 +10,7 @@ export type WorkflowSourceId = "csv" | "paste" | "search"
 export type DemoProductId = "fitness" | "crm" | "productivity"
 
 export type SourceTag =
+  | "Google Play"
   | "Demo Dataset"
   | "X Search"
   | "Pasted Feedback"
@@ -61,6 +62,7 @@ export const ANALYSIS_GOALS: AnalysisGoal[] = [
 ]
 
 export const SOURCE_TAG_BY_TYPE: Record<SourceType, SourceTag> = {
+  review: "Google Play",
   demo_dataset: "Demo Dataset",
   csv_upload: "CSV Upload",
   pasted_text: "Pasted Feedback",

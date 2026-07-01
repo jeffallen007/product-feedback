@@ -32,6 +32,7 @@ import {
 import type { AnalysisGoal, SourceType } from "@/lib/types/contracts"
 
 const TYPE_ICON: Record<SourceType, LucideIcon> = {
+  review: Database,
   demo_dataset: Database,
   x_search: Search,
   pasted_text: ClipboardList,

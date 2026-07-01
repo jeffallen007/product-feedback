@@ -48,6 +48,8 @@ function hasSentimentData(dashboard: DashboardPayload): boolean {
 
 function toScopeLabel(scope: ChatScope): string {
   switch (scope) {
+    case "review":
+      return "Google Play"
     case "demo_dataset":
       return "Demo Dataset"
     case "csv_upload":

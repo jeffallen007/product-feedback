@@ -183,7 +183,7 @@ export function ChatPanel({
           <Select
             value={scope}
             onValueChange={(value) => {
-              if (value) setScope(value)
+              if (value) setScope(value as ChatRequest["scope"])
             }}
           >
             <SelectTrigger className="h-7 w-auto gap-1.5 border-border bg-secondary px-2.5 text-xs">

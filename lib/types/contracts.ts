@@ -33,6 +33,7 @@ export interface FeedbackSet {
 }
 
 export type SourceType =
+  | "review"
   | "demo_dataset"
   | "csv_upload"
   | "pasted_text"

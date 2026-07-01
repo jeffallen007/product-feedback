@@ -6,6 +6,7 @@ import type { DashboardSourceMixItem } from "@/lib/types/contracts"
 import type { SourceTag } from "@/lib/types/workflow"
 
 const BAR_COLOR: Record<SourceTag, string> = {
+  "Google Play": "#10b981",
   "Demo Dataset": "var(--chart-1)",
   "X Search": "var(--chart-2)",
   "Pasted Feedback": "var(--chart-3)",

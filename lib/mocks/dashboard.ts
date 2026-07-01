@@ -412,6 +412,7 @@ export const DASHBOARD_ALERTS = {
 
 export const CHAT_SCOPE_OPTIONS: ScopeOption[] = [
   { value: "all", label: "All Sources" },
+  { value: "review", label: "Google Play" },
   { value: "demo_dataset", label: "Demo Dataset" },
   { value: "x_search", label: "X Search" },
   { value: "pasted_text", label: "Pasted Feedback" },
