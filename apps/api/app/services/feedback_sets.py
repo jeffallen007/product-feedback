@@ -1,5 +1,5 @@
 from app.clients.supabase import SupabaseRestClient
-from app.demo_datasets import DEMO_DATASETS, REPO_ROOT
+from app.demo_datasets import BACKEND_ROOT, DEMO_DATASETS
 from app.demo_ingest import (
     load_demo_reviews,
     normalized_review_metadata,
@@ -101,7 +101,7 @@ class FeedbackSetService:
                     "demo_product_label": demo_dataset.label,
                     "description": demo_dataset.description,
                     "real_app_name": demo_dataset.real_app_name,
-                    "dataset_path": str(demo_dataset.csv_path.relative_to(REPO_ROOT)),
+                    "dataset_path": str(demo_dataset.csv_path.relative_to(BACKEND_ROOT)),
                     "source_origin": "demo_dataset",
                     "total_record_count": total_record_count,
                     "sampled_record_count": inserted_item_count,

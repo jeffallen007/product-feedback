@@ -11,8 +11,9 @@ class DemoDatasetDefinition:
     csv_path: Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEMO_DATA_DIR = REPO_ROOT / "data" / "demo"
+APP_DIR = Path(__file__).resolve().parent
+BACKEND_ROOT = APP_DIR.parent
+DEMO_DATA_DIR = BACKEND_ROOT / "data" / "demo"
 
 
 DEMO_DATASETS: dict[str, DemoDatasetDefinition] = {

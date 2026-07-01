@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.demo_datasets import DemoDatasetDefinition, REPO_ROOT
+from app.demo_datasets import BACKEND_ROOT, DemoDatasetDefinition
 
 DEMO_SAMPLE_SIZE = 75
 REVIEW_SOURCE_TYPE = "review"
@@ -60,7 +60,7 @@ def normalized_review_metadata(
         "demo_product_id": dataset.id,
         "demo_product_label": dataset.label,
         "real_app_name": dataset.real_app_name,
-        "dataset_path": str(dataset.csv_path.relative_to(REPO_ROOT)),
+        "dataset_path": str(dataset.csv_path.relative_to(BACKEND_ROOT)),
         "channel": REVIEW_SOURCE_LABEL,
         "ingest_id": review.id,
         "source_type": review.source_type,
