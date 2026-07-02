@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sparkles, Send, MessageSquarePlus } from "lucide-react"
 import {
   SUGGESTED_PROMPTS,
@@ -32,15 +31,17 @@ export function ChatPanel({
   const [input, setInput] = useState("")
   const [thinking, setThinking] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const messagesViewportRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMessages(initialMessages)
   }, [analysisRunId, initialMessages])
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
+    const viewport = messagesViewportRef.current
+    if (!viewport) return
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
       behavior: "smooth",
     })
   }, [messages, thinking])
@@ -77,9 +78,9 @@ export function ChatPanel({
   const isEmpty = messages.length === 0
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
-      <div className="border-b border-border px-4 py-3.5">
+      <div className="shrink-0 border-b border-border px-4 py-3.5">
         <div className="flex items-center gap-2">
           <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Sparkles className="size-3.5" aria-hidden="true" />
@@ -96,73 +97,71 @@ export function ChatPanel({
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1">
-        <div ref={scrollRef} className="h-full px-4 py-4">
-          {isEmpty ? (
-            <div className="flex flex-col items-center py-6 text-center">
-              <span className="flex size-10 items-center justify-center rounded-xl border border-border bg-card">
-                <MessageSquarePlus
-                  className="size-5 text-muted-foreground"
-                  aria-hidden="true"
-                />
-              </span>
-              <p className="mt-3 text-sm font-medium text-foreground">
-                Ask a follow-up question
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                The assistant answers using only the analyzed feedback. Try a
-                suggested prompt to get started.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {messages.map((msg, i) => (
-                <ChatBubble
-                  key={i}
-                  message={msg}
-                  onFollowUp={(t) => send(t)}
-                />
-              ))}
-              {thinking && (
-                <div className="flex items-center gap-1.5 rounded-lg rounded-tl-sm bg-secondary px-3 py-2.5">
-                  <Dot delay="0ms" />
-                  <Dot delay="150ms" />
-                  <Dot delay="300ms" />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Suggested prompts */}
-          {(isEmpty || !thinking) && (
-            <div className="mt-5">
-              {errorMessage && (
-                <p className="mb-2 text-xs leading-relaxed text-destructive">
-                  {errorMessage}
-                </p>
-              )}
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                {isEmpty ? "Suggested prompts" : "Try another"}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {SUGGESTED_PROMPTS.slice(0, isEmpty ? 7 : 4).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => send(p)}
-                    className="rounded-full border border-border bg-card px-3 py-1.5 text-left text-xs text-foreground transition-colors hover:border-primary/40 hover:bg-accent/40"
-                  >
-                    {p}
-                  </button>
-                ))}
+      <div
+        ref={messagesViewportRef}
+        data-testid="chat-message-history"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
+      >
+        {isEmpty ? (
+          <div className="flex flex-col items-center py-6 text-center">
+            <span className="flex size-10 items-center justify-center rounded-xl border border-border bg-card">
+              <MessageSquarePlus
+                className="size-5 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </span>
+            <p className="mt-3 text-sm font-medium text-foreground">
+              Ask a follow-up question
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              The assistant answers using only the analyzed feedback. Try a
+              suggested prompt to get started.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {messages.map((msg, i) => (
+              <ChatBubble key={i} message={msg} />
+            ))}
+            {thinking && (
+              <div className="flex items-center gap-1.5 rounded-lg rounded-tl-sm bg-secondary px-3 py-2.5">
+                <Dot delay="0ms" />
+                <Dot delay="150ms" />
+                <Dot delay="300ms" />
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Suggested prompts */}
+        {(isEmpty || !thinking) && (
+          <div className="mt-5">
+            {errorMessage && (
+              <p className="mb-2 text-xs leading-relaxed text-destructive">
+                {errorMessage}
+              </p>
+            )}
+            <p className="mb-2 text-xs font-medium text-muted-foreground">
+              {isEmpty ? "Suggested prompts" : "Try another"}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {SUGGESTED_PROMPTS.slice(0, isEmpty ? 7 : 4).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => send(p)}
+                  className="rounded-full border border-border bg-card px-3 py-1.5 text-left text-xs text-foreground transition-colors hover:border-primary/40 hover:bg-accent/40"
+                >
+                  {p}
+                </button>
+              ))}
             </div>
-          )}
-        </div>
-      </ScrollArea>
+          </div>
+        )}
+      </div>
 
       {/* Composer */}
-      <div className="border-t border-border bg-card px-4 py-4">
+      <div className="shrink-0 border-t border-border bg-card px-4 py-4">
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -198,12 +197,8 @@ export function ChatPanel({
   )
 }
 
-function ChatBubble({
-  message,
-  onFollowUp,
-}: {
+function ChatBubble({ message }: {
   message: ChatMessage
-  onFollowUp: (text: string) => void
 }) {
   if (message.role === "user") {
     return (
@@ -220,20 +215,6 @@ function ChatBubble({
       <div className="max-w-[92%] whitespace-pre-line rounded-lg rounded-tl-sm bg-secondary px-3 py-2.5 text-sm leading-relaxed text-foreground">
         {message.content}
       </div>
-      {message.followUps && message.followUps.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {message.followUps.map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => onFollowUp(f)}
-              className="rounded-full border border-primary/30 bg-accent/40 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-accent"
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
