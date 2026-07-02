@@ -27,7 +27,10 @@ class Settings:
         default_factory=lambda: os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
     )
     openai_api_key: str | None = field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
-    openai_model: str = field(default_factory=lambda: os.getenv("OPENAI_MODEL", "gpt-5.4-mini"))
+    openai_model: str = field(default_factory=lambda: os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
+    openai_timeout_seconds: float = field(
+        default_factory=lambda: float(os.getenv("OPENAI_TIMEOUT_SECONDS", "12")),
+    )
     frontend_origins: list[str] = field(default_factory=_parse_frontend_origins)
 
 

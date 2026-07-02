@@ -13,6 +13,8 @@ def test_settings_uses_local_frontend_origins_by_default(monkeypatch) -> None:  
         "http://localhost:3001",
         "http://127.0.0.1:3001",
     ]
+    assert settings.openai_model == "gpt-4.1-mini"
+    assert settings.openai_timeout_seconds == 12.0
     get_settings.cache_clear()
 
 

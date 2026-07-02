@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -120,10 +119,12 @@ class OpenAIResponsesClient:
         *,
         api_key: str,
         model: str,
+        timeout_seconds: float,
         base_url: str = "https://api.openai.com/v1/responses",
     ) -> None:
         self._api_key = api_key
         self._model = model
+        self._timeout_seconds = timeout_seconds
         self._base_url = base_url
 
     @classmethod
@@ -133,6 +134,7 @@ class OpenAIResponsesClient:
         return cls(
             api_key=settings.openai_api_key,
             model=settings.openai_model,
+            timeout_seconds=settings.openai_timeout_seconds,
         )
 
     @property
@@ -149,8 +151,14 @@ class OpenAIResponsesClient:
         payload = {
             "model": self._model,
             "input": [
-                {"role": "developer", "content": developer_prompt},
-                {"role": "user", "content": user_prompt},
+                {
+                    "role": "developer",
+                    "content": [{"type": "input_text", "text": developer_prompt}],
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": user_prompt}],
+                },
             ],
             "text": {
                 "format": {
@@ -169,14 +177,19 @@ class OpenAIResponsesClient:
         }
 
         try:
-            with httpx.Client(timeout=45.0) as client:
+            timeout = httpx.Timeout(
+                timeout=self._timeout_seconds,
+                connect=min(self._timeout_seconds, 5.0),
+            )
+            with httpx.Client(timeout=timeout) as client:
                 response = client.post(self._base_url, headers=headers, json=payload)
         except httpx.HTTPError as exc:
             raise RuntimeError("OpenAI Responses API request failed.") from exc
 
         if response.status_code >= 400:
+            error_excerpt = response.text[:500]
             raise RuntimeError(
-                f"OpenAI Responses API returned status {response.status_code}: {response.text}",
+                f"OpenAI Responses API returned status {response.status_code}: {error_excerpt}",
             )
 
         body = response.json()
@@ -243,7 +256,12 @@ class FeedbackSynthesisService:
             }
             return SynthesisResult(dashboard_payload=dashboard_payload, metadata=metadata)
         except Exception as exc:
-            logger.exception("LLM synthesis failed; falling back to deterministic synthesis.")
+            logger.exception(
+                "LLM synthesis failed; falling back to deterministic synthesis. "
+                "model=%s reason=%s",
+                self._llm_model,
+                exc,
+            )
             return self._build_fallback_result(
                 request,
                 fallback_reason=f"llm_error:{exc}",

@@ -13,6 +13,7 @@ from app.main import app
 from app.schemas.analysis_runs import SynthesizeFeedbackSetRequest
 from app.schemas.chat import AskAnalysisQuestionRequest
 from app.services.analysis_runs import AnalysisRunService
+from app.services.feedback_synthesis import FeedbackSynthesisService
 
 
 class FakeSynthesisService:
@@ -75,6 +76,11 @@ class FakeSynthesisService:
                 "llm_model": "gpt-5.4-mini" if self.synthesis_method == "llm_openai" else None,
             },
         )
+
+
+class ErrorLLMClient:
+    def create_structured_output(self, *, developer_prompt, user_prompt, schema):  # type: ignore[no-untyped-def]
+        raise RuntimeError("simulated openai failure")
 
 
 class FakeAnalysisSupabaseClient:
@@ -600,6 +606,74 @@ def test_create_placeholder_run_succeeds_for_pasted_feedback_source() -> None:
             "percent": 100,
         }
     ]
+
+
+def test_create_placeholder_run_for_demo_feedback_falls_back_when_openai_fails() -> None:
+    client = FakeAnalysisSupabaseClient(
+        source_type="review",
+        source_label="google_play",
+        demo_product_id="fitness_app",
+    )
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        synthesis_service=FeedbackSynthesisService(
+            llm_client=ErrorLLMClient(),
+            llm_model="gpt-4.1-mini",
+        ),
+    )
+
+    response = service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    bundle = service.get_analysis_run_bundle(response.analysis_run.id)
+
+    assert response.analysis_run.metadata["synthesis_method"] == "deterministic_fallback"
+    assert str(response.analysis_run.metadata["fallback_reason"]).startswith("llm_error:")
+    assert bundle.dashboard is not None
+
+
+def test_create_placeholder_run_for_pasted_feedback_falls_back_when_openai_fails() -> None:
+    client = FakeAnalysisSupabaseClient(
+        analysis_target_name="Acme PM",
+        analysis_target_description="A project planning tool for cross-functional teams.",
+        source_type="pasted_text",
+        source_label="Pasted Feedback",
+        demo_product_id="productivity_tool",
+    )
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        synthesis_service=FeedbackSynthesisService(
+            llm_client=ErrorLLMClient(),
+            llm_model="gpt-4.1-mini",
+        ),
+    )
+
+    response = service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    bundle = service.get_analysis_run_bundle(response.analysis_run.id)
+
+    assert response.analysis_run.metadata["synthesis_method"] == "deterministic_fallback"
+    assert bundle.dashboard is not None
+
+
+def test_create_placeholder_run_for_csv_feedback_falls_back_when_openai_fails() -> None:
+    client = FakeAnalysisSupabaseClient(
+        analysis_target_name="Acme PM",
+        analysis_target_description="A project planning tool for cross-functional teams.",
+        source_type="csv_upload",
+        source_label="CSV Upload",
+        demo_product_id="productivity_tool",
+    )
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        synthesis_service=FeedbackSynthesisService(
+            llm_client=ErrorLLMClient(),
+            llm_model="gpt-4.1-mini",
+        ),
+    )
+
+    response = service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    bundle = service.get_analysis_run_bundle(response.analysis_run.id)
+
+    assert response.analysis_run.metadata["synthesis_method"] == "deterministic_fallback"
+    assert bundle.dashboard is not None
 
 
 def test_create_placeholder_run_succeeds_for_csv_feedback_source() -> None:
