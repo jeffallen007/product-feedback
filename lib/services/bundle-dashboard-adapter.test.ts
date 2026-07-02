@@ -379,7 +379,6 @@ describe("adaptBackendBundleToDashboard", () => {
       {
         role: "assistant",
         content: "Notification controls are the clearest first move.",
-        followUps: ["Show supporting quotes"],
       },
     ])
     expect(withoutHistory.chatHistory).toEqual([])

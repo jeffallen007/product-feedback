@@ -119,7 +119,6 @@ export function Dashboard({
                 : {
                     role: "assistant",
                     content: message.answer ?? "",
-                    followUps: message.followUpSuggestions,
                   },
             ),
           )
@@ -387,7 +386,7 @@ export function Dashboard({
         </div>
 
         {/* Desktop chat panel */}
-        <aside className="sticky top-[57px] hidden h-[calc(100svh-57px)] w-[380px] shrink-0 border-l border-border bg-card lg:block">
+        <aside className="sticky top-[57px] hidden h-[calc(100svh-57px)] min-h-0 w-[380px] shrink-0 overflow-hidden border-l border-border bg-card lg:flex lg:flex-col">
           <ChatPanel analysisRunId={analysisRunId} initialMessages={chatHistory} />
         </aside>
       </div>
@@ -410,8 +409,8 @@ export function Dashboard({
             onClick={() => setChatOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-x-0 bottom-0 flex h-[85svh] flex-col rounded-t-2xl border-t border-border bg-card">
-            <div className="flex items-center justify-end px-3 pt-2">
+          <div className="absolute inset-x-0 bottom-0 flex h-[85svh] min-h-0 flex-col overflow-hidden rounded-t-2xl border-t border-border bg-card">
+            <div className="flex shrink-0 items-center justify-end px-3 pt-2">
               <Button
                 variant="ghost"
                 size="icon"
@@ -421,7 +420,7 @@ export function Dashboard({
                 <XIcon className="size-4" aria-hidden="true" />
               </Button>
             </div>
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1 overflow-hidden">
               <ChatPanel analysisRunId={analysisRunId} initialMessages={chatHistory} />
             </div>
           </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useLayoutEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Sparkles, Send, MessageSquarePlus } from "lucide-react"
 import {
@@ -16,7 +16,6 @@ function toAssistantMessage(response: ChatResponse): ChatMessage {
   return {
     role: "assistant",
     content: response.answer,
-    followUps: response.followUpSuggestions,
   }
 }
 
@@ -37,12 +36,12 @@ export function ChatPanel({
     setMessages(initialMessages)
   }, [analysisRunId, initialMessages])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const viewport = messagesViewportRef.current
     if (!viewport) return
     viewport.scrollTo({
       top: viewport.scrollHeight,
-      behavior: "smooth",
+      behavior: "auto",
     })
   }, [messages, thinking])
 
@@ -78,7 +77,7 @@ export function ChatPanel({
   const isEmpty = messages.length === 0
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
       <div className="shrink-0 border-b border-border px-4 py-3.5">
         <div className="flex items-center gap-2">
@@ -100,7 +99,7 @@ export function ChatPanel({
       <div
         ref={messagesViewportRef}
         data-testid="chat-message-history"
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
+        className="min-h-0 flex-1 basis-0 overflow-y-auto overscroll-contain px-4 py-4"
       >
         {isEmpty ? (
           <div className="flex flex-col items-center py-6 text-center">
@@ -180,7 +179,7 @@ export function ChatPanel({
             }}
             rows={3}
             placeholder="Ask a follow-up about themes, sources, roadmap priorities, or evidence…"
-            className="max-h-48 min-h-[120px] flex-1 resize-y rounded-lg border border-input bg-background px-3 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="max-h-32 min-h-24 flex-1 resize-none rounded-lg border border-input bg-background px-3 py-3 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
           <Button
             type="submit"

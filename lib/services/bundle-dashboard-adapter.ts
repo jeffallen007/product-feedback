@@ -98,7 +98,6 @@ function mapChatHistory(
       : {
           role: "assistant",
           content: message.answer ?? "",
-          followUps: message.followUpSuggestions,
         },
   )
 }
