@@ -235,13 +235,16 @@ export async function synthesizeFeedbackSet(
   input: SynthesizeFeedbackSetRequest,
 ): Promise<SynthesizeFeedbackSetResponse> {
   if (isBackendDemoEnabled()) {
-    return backendRequest<SynthesizeFeedbackSetResponse>(
+    const response = await backendRequest<SynthesizeFeedbackSetResponse>(
       `/feedback-sets/${input.feedbackSetId}/synthesize`,
       {
         method: "POST",
         body: JSON.stringify({}),
       },
     )
+
+    analysisRunModeStore.set(response.analysisRun.id, "backend")
+    return response
   }
 
   return synthesizeMockFeedbackSet(input)

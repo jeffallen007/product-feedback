@@ -154,4 +154,112 @@ describe("analysis-service pasted feedback", () => {
       }),
     )
   })
+
+  it("fetches the dashboard bundle using the exact backend analysis run id returned by custom synthesize", async () => {
+    vi.stubEnv("NEXT_PUBLIC_USE_BACKEND_DEMO", "true")
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.test")
+
+    const fetchMock = vi.fn()
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            analysisRun: {
+              id: "run_backend_123",
+              feedbackSetId: "set_456",
+              status: "completed",
+              currentStep: "generate_dashboard",
+              steps: [],
+              startedAt: "2026-07-01T00:00:00Z",
+              completedAt: "2026-07-01T00:00:00Z",
+              errorMessage: null,
+              metadata: {
+                total_feedback_count: 2,
+                source_count: 1,
+              },
+            },
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            analysisRun: {
+              id: "run_backend_123",
+              feedbackSetId: "set_456",
+              status: "completed",
+              currentStep: "generate_dashboard",
+              steps: [],
+              startedAt: "2026-07-01T00:00:00Z",
+              completedAt: "2026-07-01T00:00:00Z",
+              errorMessage: null,
+              metadata: {
+                total_feedback_count: 2,
+                source_count: 1,
+              },
+            },
+            feedbackSet: {
+              id: "set_456",
+              analysisTargetId: "target_123",
+              name: null,
+              analysisGoal: "Full Product Feedback Synthesis",
+              status: "completed",
+              totalFeedbackCount: 2,
+              createdAt: "2026-07-01T00:00:00Z",
+              updatedAt: "2026-07-01T00:00:00Z",
+            },
+            analysisTarget: {
+              id: "target_123",
+              name: "Acme PM",
+              description: "Project planning tool",
+              createdAt: "2026-07-01T00:00:00Z",
+            },
+            sources: [
+              {
+                id: "source_789",
+                feedbackSetId: "set_456",
+                sourceType: "pasted_text",
+                sourceLabel: "Pasted Feedback",
+                itemCount: 2,
+                status: "ready",
+                metadata: {
+                  source_origin: "pasted_text",
+                },
+                createdAt: "2026-07-01T00:00:00Z",
+              },
+            ],
+            dashboard: null,
+            chatHistory: [],
+            placeholderMessage: "Dashboard summary has not been generated yet.",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { synthesizeFeedbackSet, getAnalysisRunBundle } = await import(
+      "@/lib/services/analysis-service"
+    )
+
+    const synthesis = await synthesizeFeedbackSet({
+      feedbackSetId: "set_456",
+    })
+
+    expect(synthesis.analysisRun.id).toBe("run_backend_123")
+
+    const bundle = await getAnalysisRunBundle({
+      analysisRunId: synthesis.analysisRun.id,
+    })
+
+    expect(bundle.analysisRun.id).toBe("run_backend_123")
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.example.test/analysis-runs/run_backend_123/bundle",
+      expect.objectContaining({
+        cache: "no-store",
+      }),
+    )
+  })
 })
