@@ -676,6 +676,42 @@ def test_create_placeholder_run_for_csv_feedback_falls_back_when_openai_fails() 
     assert bundle.dashboard is not None
 
 
+def test_create_placeholder_run_succeeds_for_generic_pasted_feedback_without_theme_key() -> None:
+    client = FakeAnalysisSupabaseClient(
+        analysis_target_name="WidgetCo",
+        analysis_target_description="A B2B workflow product.",
+        source_type="pasted_text",
+        source_label="Pasted Feedback",
+        demo_product_id=None,  # type: ignore[arg-type]
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    bundle = service.get_analysis_run_bundle(response.analysis_run.id)
+
+    assert response.analysis_run.id == "run_123"
+    assert bundle.dashboard is not None
+    assert bundle.dashboard.top_themes
+
+
+def test_create_placeholder_run_succeeds_for_generic_csv_feedback_without_theme_key() -> None:
+    client = FakeAnalysisSupabaseClient(
+        analysis_target_name="WidgetCo",
+        analysis_target_description="A B2B workflow product.",
+        source_type="csv_upload",
+        source_label="CSV Upload",
+        demo_product_id=None,  # type: ignore[arg-type]
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    bundle = service.get_analysis_run_bundle(response.analysis_run.id)
+
+    assert response.analysis_run.id == "run_123"
+    assert bundle.dashboard is not None
+    assert bundle.dashboard.top_themes
+
+
 def test_create_placeholder_run_succeeds_for_csv_feedback_source() -> None:
     client = FakeAnalysisSupabaseClient(
         analysis_target_name="Acme PM",
@@ -1003,3 +1039,32 @@ def test_analysis_run_routes_surface_errors() -> None:
     assert "chat_messages" in history_response.json()["detail"]
     assert bundle_response.status_code == 502
     assert "analysis_runs" in bundle_response.json()["detail"]
+
+
+def test_synthesize_feedback_set_endpoint_returns_created_run_when_llm_fails() -> None:
+    client = FakeAnalysisSupabaseClient(
+        source_type="pasted_text",
+        source_label="pasted_feedback",
+        demo_product_id="",
+    )
+    synthesis_service = FeedbackSynthesisService(
+        llm_client=ErrorLLMClient(),
+        llm_model="gpt-4.1-mini",
+    )
+    app.dependency_overrides[get_analysis_run_service] = lambda: AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        synthesis_service=synthesis_service,
+    )
+    test_client = TestClient(app)
+
+    response = test_client.post("/feedback-sets/set_456/synthesize", json={})
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["analysisRun"]["id"] == "run_123"
+    update_call = next(call for call in client.calls if call[0] == "analysis_runs:update")
+    metadata = update_call[1]["payload"]["metadata_json"]
+    assert metadata["synthesis_method"] == "deterministic_fallback"
+    assert str(metadata["fallback_reason"]).startswith("llm_error:")

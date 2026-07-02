@@ -226,9 +226,11 @@ class FeedbackSynthesisService:
         *,
         llm_client: StructuredLLMClient | None,
         llm_model: str | None = None,
+        llm_timeout_seconds: float | None = None,
     ) -> None:
         self._llm_client = llm_client
         self._llm_model = llm_model
+        self._llm_timeout_seconds = llm_timeout_seconds
 
     @classmethod
     def from_settings(cls, settings: Settings) -> FeedbackSynthesisService:
@@ -236,16 +238,37 @@ class FeedbackSynthesisService:
         return cls(
             llm_client=llm_client,
             llm_model=llm_client.model if llm_client is not None else None,
+            llm_timeout_seconds=settings.openai_timeout_seconds,
         )
 
     def synthesize(self, request: SynthesisRequest) -> SynthesisResult:
+        logger.info(
+            "Synthesis requested. analysis_run_id=%s llm_enabled=%s model=%s timeout_seconds=%s "
+            "feedback_items=%s sources=%s",
+            request.analysis_run_id,
+            self._llm_client is not None,
+            self._llm_model,
+            self._llm_timeout_seconds,
+            len(request.feedback_items),
+            len(request.sources),
+        )
         if self._llm_client is None:
+            logger.info(
+                "LLM client unavailable; using deterministic fallback. analysis_run_id=%s reason=%s",
+                request.analysis_run_id,
+                "missing_openai_api_key",
+            )
             return self._build_fallback_result(
                 request,
                 fallback_reason="missing_openai_api_key",
             )
 
         try:
+            logger.info(
+                "Starting LLM synthesis attempt. analysis_run_id=%s model=%s",
+                request.analysis_run_id,
+                self._llm_model,
+            )
             llm_sections = self._run_llm(request)
             dashboard_payload = self._merge_llm_sections(request, llm_sections)
             metadata = {
@@ -254,6 +277,12 @@ class FeedbackSynthesisService:
                 "included_feedback_item_count": self._count_prompt_items(request),
                 "total_feedback_item_count": len(request.feedback_items),
             }
+            logger.info(
+                "LLM synthesis succeeded. analysis_run_id=%s model=%s included_feedback_item_count=%s",
+                request.analysis_run_id,
+                self._llm_model,
+                metadata["included_feedback_item_count"],
+            )
             return SynthesisResult(dashboard_payload=dashboard_payload, metadata=metadata)
         except Exception as exc:
             logger.exception(
@@ -262,11 +291,17 @@ class FeedbackSynthesisService:
                 self._llm_model,
                 exc,
             )
-            return self._build_fallback_result(
+            fallback_result = self._build_fallback_result(
                 request,
                 fallback_reason=f"llm_error:{exc}",
                 llm_model=self._llm_model,
             )
+            logger.info(
+                "Deterministic fallback succeeded. analysis_run_id=%s fallback_reason=%s",
+                request.analysis_run_id,
+                fallback_result.metadata["fallback_reason"],
+            )
+            return fallback_result
 
     def _run_llm(self, request: SynthesisRequest) -> LLMSynthesisSections:
         selected_items, selected_count, selected_chars = self._select_feedback_for_prompt(

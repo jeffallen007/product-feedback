@@ -1,4 +1,5 @@
 from collections import Counter
+import logging
 
 from app.clients.supabase import SupabaseRestClient
 from app.demo_synthesis import (
@@ -40,6 +41,8 @@ from app.schemas.feedback_sets import (
     FeedbackSetResponse,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class AnalysisRunService:
     def __init__(
@@ -58,6 +61,7 @@ class AnalysisRunService:
         feedback_set_id: str,
         request: SynthesizeFeedbackSetRequest,
     ) -> SynthesizeFeedbackSetResponse:
+        logger.info("Synthesize request started. feedback_set_id=%s", feedback_set_id)
         feedback_set = self._get_feedback_set(feedback_set_id)
         analysis_target = self._supabase.fetch_single_row(
             "analysis_targets",
@@ -97,6 +101,16 @@ class AnalysisRunService:
                 "metadata_json": metadata,
             },
         )
+        logger.info(
+            "Analysis run persisted. feedback_set_id=%s analysis_run_id=%s",
+            feedback_set_id,
+            analysis_run["id"],
+        )
+        dataset_id = self._resolve_demo_product_id(
+            analysis_target=analysis_target,
+            sources=sources,
+            feedback_items=feedback_items,
+        )
         synthesis_result = self._synthesis_service.synthesize(
             SynthesisRequest(
                 analysis_run_id=str(analysis_run["id"]),
@@ -104,19 +118,11 @@ class AnalysisRunService:
                 product_name=str(analysis_target["name"]),
                 product_description=str(analysis_target["description"]),
                 completed_at=str(analysis_run["completed_at"]),
-                dataset_id=self._resolve_demo_product_id(
-                    analysis_target=analysis_target,
-                    sources=sources,
-                    feedback_items=feedback_items,
-                ),
+                dataset_id=dataset_id,
                 sources=sources,
                 feedback_items=[
                     self._normalize_feedback_item(
-                        self._resolve_demo_product_id(
-                            analysis_target=analysis_target,
-                            sources=sources,
-                            feedback_items=feedback_items,
-                        ),
+                        dataset_id,
                         item,
                     )
                     for item in feedback_items
@@ -136,7 +142,18 @@ class AnalysisRunService:
                 "summary_payload": synthesis_result.dashboard_payload.model_dump(by_alias=True),
             },
         )
+        logger.info(
+            "Dashboard summary persisted. feedback_set_id=%s analysis_run_id=%s synthesis_method=%s",
+            feedback_set_id,
+            analysis_run["id"],
+            metadata.get("synthesis_method"),
+        )
         analysis_run["metadata_json"] = metadata
+        logger.info(
+            "Synthesize response completed. feedback_set_id=%s analysis_run_id=%s",
+            feedback_set_id,
+            analysis_run["id"],
+        )
 
         return SynthesizeFeedbackSetResponse(
             analysisRun=self._to_analysis_run_response(analysis_run),
@@ -704,16 +721,22 @@ class AnalysisRunService:
         item: dict[str, object],
     ) -> dict[str, object]:
         inferred = infer_demo_feedback_attributes(dataset_id, item) if dataset_id is not None else infer_generic_feedback_attributes(item)
+        existing_metadata = item.get("metadata_json", {})
+        normalized_metadata = inferred.get("metadata_json")
+        if not isinstance(normalized_metadata, dict):
+            normalized_metadata = dict(existing_metadata) if isinstance(existing_metadata, dict) else {}
         normalized = dict(item)
         normalized.update(
             {
-                "category": item.get("category") or inferred["category"],
-                "sentiment": item.get("sentiment") or inferred["sentiment"],
-                "severity": item.get("severity") or inferred["severity"],
-                "churn_risk": item.get("churn_risk") if item.get("churn_risk") is not None else inferred["churn_risk"],
-                "metadata_json": inferred["metadata_json"],
-                "theme_key": inferred["theme_key"],
-                "theme_name": inferred["theme_name"],
+                "category": item.get("category") or inferred.get("category") or "unknown",
+                "sentiment": item.get("sentiment") or inferred.get("sentiment") or "neutral",
+                "severity": item.get("severity") or inferred.get("severity") or "medium",
+                "churn_risk": item.get("churn_risk")
+                if item.get("churn_risk") is not None
+                else bool(inferred.get("churn_risk", False)),
+                "metadata_json": normalized_metadata,
+                "theme_key": item.get("theme_key") or inferred.get("theme_key"),
+                "theme_name": item.get("theme_name") or inferred.get("theme_name"),
             }
         )
         return normalized

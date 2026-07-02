@@ -1,3 +1,5 @@
+import httpx
+
 from app.services.feedback_synthesis import (
     FeedbackSynthesisService,
     SynthesisRequest,
@@ -172,6 +174,34 @@ def test_feedback_synthesis_falls_back_on_llm_error() -> None:
     assert result.metadata["synthesis_method"] == "deterministic_fallback"
     assert str(result.metadata["fallback_reason"]).startswith("llm_error:")
     assert result.metadata["llm_model"] == "gpt-5.4-mini"
+
+
+def test_feedback_synthesis_falls_back_on_openai_timeout() -> None:
+    service = FeedbackSynthesisService(
+        llm_client=FakeLLMClient(error=httpx.ReadTimeout("timed out")),
+        llm_model="gpt-4.1-mini",
+    )
+
+    result = service.synthesize(make_request())
+
+    assert result.metadata["synthesis_method"] == "deterministic_fallback"
+    assert str(result.metadata["fallback_reason"]).startswith("llm_error:")
+    assert result.metadata["llm_model"] == "gpt-4.1-mini"
+
+
+def test_feedback_synthesis_falls_back_on_openai_http_500() -> None:
+    service = FeedbackSynthesisService(
+        llm_client=FakeLLMClient(
+            error=RuntimeError("OpenAI Responses API returned status 500: upstream error"),
+        ),
+        llm_model="gpt-4.1-mini",
+    )
+
+    result = service.synthesize(make_request())
+
+    assert result.metadata["synthesis_method"] == "deterministic_fallback"
+    assert str(result.metadata["fallback_reason"]).startswith("llm_error:")
+    assert result.metadata["llm_model"] == "gpt-4.1-mini"
 
 
 def test_feedback_synthesis_falls_back_on_invalid_json() -> None:

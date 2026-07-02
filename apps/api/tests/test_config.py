@@ -32,3 +32,13 @@ def test_settings_parses_configured_frontend_origins(monkeypatch) -> None:  # ty
         "https://preview.example.com",
     ]
     get_settings.cache_clear()
+
+
+def test_settings_uses_default_timeout_when_openai_timeout_env_is_invalid(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("OPENAI_TIMEOUT_SECONDS", "12s")
+    get_settings.cache_clear()
+
+    settings = get_settings()
+
+    assert settings.openai_timeout_seconds == 12.0
+    get_settings.cache_clear()

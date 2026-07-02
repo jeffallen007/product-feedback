@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -16,6 +18,8 @@ from app.errors import (
     MissingSupabaseConfigError,
     SupabaseInsertError,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def handle_missing_supabase_config(
@@ -98,6 +102,22 @@ def handle_invalid_csv_upload(
     )
 
 
+def handle_unexpected_exception(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    logger.exception(
+        "Unhandled API exception. method=%s path=%s",
+        request.method,
+        request.url.path,
+        exc_info=exc,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Unexpected server error while processing the request."},
+    )
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -144,6 +164,10 @@ def create_app() -> FastAPI:
     app.add_exception_handler(
         InvalidCsvUploadError,
         handle_invalid_csv_upload,
+    )
+    app.add_exception_handler(
+        Exception,
+        handle_unexpected_exception,
     )
     app.include_router(health_router)
     app.include_router(feedback_sets_router)
