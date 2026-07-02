@@ -1,4 +1,5 @@
 from datetime import datetime, UTC
+import json
 
 from fastapi.testclient import TestClient
 
@@ -13,6 +14,7 @@ from app.main import app
 from app.schemas.analysis_runs import SynthesizeFeedbackSetRequest
 from app.schemas.chat import AskAnalysisQuestionRequest
 from app.services.analysis_runs import AnalysisRunService
+from app.services.feedback_chat import FeedbackChatService
 from app.services.feedback_synthesis import FeedbackSynthesisService
 
 
@@ -81,6 +83,27 @@ class FakeSynthesisService:
 class ErrorLLMClient:
     def create_structured_output(self, *, developer_prompt, user_prompt, schema):  # type: ignore[no-untyped-def]
         raise RuntimeError("simulated openai failure")
+
+
+class FakeChatLLMClient:
+    def __init__(self, response_text: str | None = None, error: Exception | None = None) -> None:
+        self.response_text = response_text
+        self.error = error
+        self.developer_prompt: str | None = None
+        self.user_prompt: str | None = None
+        self.schema: dict[str, object] | None = None
+
+    @property
+    def model(self) -> str:
+        return "gpt-4.1-mini"
+
+    def create_structured_output(self, *, developer_prompt, user_prompt, schema):  # type: ignore[no-untyped-def]
+        self.developer_prompt = developer_prompt
+        self.user_prompt = user_prompt
+        self.schema = schema
+        if self.error is not None:
+            raise self.error
+        return self.response_text or ""
 
 
 class FakeAnalysisSupabaseClient:
@@ -232,7 +255,7 @@ class FakeAnalysisSupabaseClient:
             if self.fail_chat_insert:
                 raise SupabaseInsertError("Supabase insert failed for table 'chat_messages'.")
             message_number = len([call for call in self.calls if call[0] == "chat_messages"])
-            return {
+            row = {
                 "id": f"message_{message_number}",
                 "analysis_run_id": payload["analysis_run_id"],
                 "role": payload["role"],
@@ -243,6 +266,8 @@ class FakeAnalysisSupabaseClient:
                 "follow_up_suggestions": payload["follow_up_suggestions"],
                 "created_at": datetime(2026, 6, 18, 9, message_number, tzinfo=UTC).isoformat(),
             }
+            self.chat_history.append(row)
+            return row
         raise AssertionError(f"Unexpected insert table {table}")
 
     def update_row(
@@ -803,6 +828,261 @@ def test_ask_placeholder_question_persists_user_and_assistant_messages() -> None
     ]
 
 
+def test_ask_analysis_question_uses_llm_chat_when_available() -> None:
+    llm_client = FakeChatLLMClient(
+        response_text=json.dumps(
+            {
+                "answer": "Based on the feedback, prioritize quieter notification defaults first because repeated alert fatigue is the clearest workflow risk.",
+                "evidence": [{"feedbackItemId": "item_1"}],
+                "followUpSuggestions": [
+                    "Which notification controls should ship first?",
+                    "What evidence supports that priority?",
+                ],
+            }
+        )
+    )
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=llm_client, llm_model=llm_client.model),
+    )
+
+    response = service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="What should we build first?", scope="all"),
+    )
+
+    chat_inserts = [call for call in client.calls if call[0] == "chat_messages"]
+    assert len(chat_inserts) == 2
+    assert chat_inserts[0][1]["role"] == "user"
+    assert chat_inserts[1][1]["role"] == "assistant"
+    assert response.answer.startswith("Based on the feedback")
+    assert response.evidence[0].feedback_item_id == "item_1"
+    assert response.follow_up_suggestions == [
+        "Which notification controls should ship first?",
+        "What evidence supports that priority?",
+    ]
+    assert llm_client.user_prompt is not None
+    prompt_payload = json.loads(llm_client.user_prompt)
+    assert prompt_payload["product_name"] == "Pulse Fitness"
+    assert prompt_payload["executive_summary"] == "Placeholder summary."
+    assert prompt_payload["total_feedback_item_count"] == 12
+    assert prompt_payload["included_feedback_item_count"] <= 40
+
+
+def test_ask_analysis_question_without_openai_key_falls_back_to_deterministic_chat() -> None:
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=None),
+    )
+
+    response = service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="Show evidence for notification overload", scope="all"),
+    )
+
+    assert response.answer.startswith("Notification overload is one of the strongest signals in this run")
+    assert len(response.evidence) == 3
+
+
+def test_ask_analysis_question_falls_back_when_openai_chat_errors() -> None:
+    llm_client = FakeChatLLMClient(error=RuntimeError("timeout"))
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=llm_client, llm_model=llm_client.model),
+    )
+
+    response = service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="What should we prioritize first?", scope="all"),
+    )
+
+    assert response.answer.startswith("Prioritize Fix setup friction first")
+    assert len(response.evidence) == 2
+
+
+def test_ask_analysis_question_falls_back_when_openai_chat_returns_invalid_json() -> None:
+    llm_client = FakeChatLLMClient(response_text="{not json")
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=llm_client, llm_model=llm_client.model),
+    )
+
+    response = service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="Executive summary", scope="all"),
+    )
+
+    assert response.answer == "Placeholder summary."
+
+
+def test_ask_analysis_question_falls_back_when_openai_chat_returns_empty_answer() -> None:
+    llm_client = FakeChatLLMClient(
+        response_text=json.dumps(
+            {
+                "answer": "   ",
+                "evidence": [],
+                "followUpSuggestions": [],
+            }
+        )
+    )
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=llm_client, llm_model=llm_client.model),
+    )
+
+    response = service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="Give me a roadmap memo", scope="all"),
+    )
+
+    assert response.answer.startswith("Roadmap memo:")
+
+
+def test_chat_response_is_persisted_and_history_returns_user_and_assistant_messages() -> None:
+    llm_client = FakeChatLLMClient(
+        response_text=json.dumps(
+            {
+                "answer": "Based on the feedback, notification defaults are the clearest quick win.",
+                "evidence": [{"feedbackItemId": "item_2"}],
+                "followUpSuggestions": ["Which quick win is lowest effort?"],
+            }
+        )
+    )
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=llm_client, llm_model=llm_client.model),
+    )
+
+    service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="Are there any quick wins?", scope="all"),
+    )
+    history = service.get_chat_history("run_123")
+
+    assert [message.role for message in history.messages] == ["user", "assistant"]
+    assert history.messages[0].question == "Are there any quick wins?"
+    assert history.messages[1].answer == "Based on the feedback, notification defaults are the clearest quick win."
+    assert history.messages[1].evidence[0].feedback_item_id == "item_2"
+
+
+def test_llm_chat_works_for_demo_dataset_analysis_run() -> None:
+    llm_client = FakeChatLLMClient(
+        response_text=json.dumps(
+            {
+                "answer": "Based on the feedback, the PM team should address notification overload first.",
+                "evidence": [{"feedbackItemId": "item_1"}],
+                "followUpSuggestions": ["Show the strongest evidence."],
+            }
+        )
+    )
+    client = FakeAnalysisSupabaseClient(dashboard_summary=make_dashboard_summary())
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=llm_client, llm_model=llm_client.model),
+    )
+
+    response = service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="What should the PM team do next?", scope="all"),
+    )
+
+    assert response.answer.startswith("Based on the feedback")
+
+
+def test_llm_chat_works_for_paste_feedback_analysis_run() -> None:
+    llm_client = FakeChatLLMClient(
+        response_text=json.dumps(
+            {
+                "answer": "Based on the pasted feedback, reduce notification fatigue before expanding features.",
+                "evidence": [{"feedbackItemId": "item_1"}],
+                "followUpSuggestions": ["Which pasted comments support this?"],
+            }
+        )
+    )
+    client = FakeAnalysisSupabaseClient(
+        source_type="pasted_text",
+        source_label="Pasted Feedback",
+        dashboard_summary=make_dashboard_summary(),
+    )
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=llm_client, llm_model=llm_client.model),
+    )
+
+    response = service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="What should we build first?", scope="all"),
+    )
+
+    assert response.answer.startswith("Based on the pasted feedback")
+
+
+def test_llm_chat_works_for_csv_upload_analysis_run() -> None:
+    llm_client = FakeChatLLMClient(
+        response_text=json.dumps(
+            {
+                "answer": "Based on the CSV feedback, notification controls are the highest-confidence near-term fix.",
+                "evidence": [{"feedbackItemId": "item_1"}],
+                "followUpSuggestions": ["Which CSV rows support this?"],
+            }
+        )
+    )
+    client = FakeAnalysisSupabaseClient(
+        source_type="csv_upload",
+        source_label="CSV Upload",
+        dashboard_summary=make_dashboard_summary(),
+    )
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=llm_client, llm_model=llm_client.model),
+    )
+
+    response = service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="Which themes are most urgent?", scope="all"),
+    )
+
+    assert response.answer.startswith("Based on the CSV feedback")
+
+
+def test_llm_chat_prompt_does_not_include_all_demo_rows() -> None:
+    llm_client = FakeChatLLMClient(
+        response_text=json.dumps(
+            {
+                "answer": "Based on the feedback sample, notification overload is the strongest theme.",
+                "evidence": [{"feedbackItemId": "item_1"}],
+                "followUpSuggestions": ["Show more evidence for notification overload."],
+            }
+        )
+    )
+    client = FakeAnalysisSupabaseClient(
+        total_feedback_count=750,
+        dashboard_summary=make_dashboard_summary(),
+    )
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        chat_service=FeedbackChatService(llm_client=llm_client, llm_model=llm_client.model),
+    )
+
+    service.ask_analysis_question(
+        "run_123",
+        AskAnalysisQuestionRequest(question="What is the strongest evidence for notification overload?", scope="all"),
+    )
+
+    assert llm_client.user_prompt is not None
+    prompt_payload = json.loads(llm_client.user_prompt)
+    assert prompt_payload["total_feedback_item_count"] == 750
+    assert prompt_payload["included_feedback_item_count"] == 40
+    assert len(prompt_payload["feedback_snippets"]) == 40
+    assert "Sample review 750" not in llm_client.user_prompt
+
+
 def test_ask_placeholder_question_rejects_missing_run() -> None:
     class MissingRunClient(FakeAnalysisSupabaseClient):
         def fetch_single_row(self, table: str, *, filters: dict[str, str]) -> dict[str, object]:
@@ -1006,7 +1286,7 @@ def test_analysis_run_routes_surface_errors() -> None:
         def get_analysis_run(self, _analysis_run_id):  # type: ignore[no-untyped-def]
             raise AnalysisRunNotFoundError("Analysis run 'run_missing' was not found.")
 
-        def ask_placeholder_question(self, _analysis_run_id, _request):  # type: ignore[no-untyped-def]
+        def ask_analysis_question(self, _analysis_run_id, _request):  # type: ignore[no-untyped-def]
             raise SupabaseInsertError("Supabase insert failed for table 'chat_messages'.")
 
         def get_chat_history(self, _analysis_run_id):  # type: ignore[no-untyped-def]

@@ -20,6 +20,10 @@ from app.services.feedback_synthesis import (
     infer_generic_feedback_attributes,
     iso_now,
 )
+from app.services.feedback_chat import (
+    FeedbackChatRequest,
+    FeedbackChatService,
+)
 from app.schemas.analysis_runs import (
     AnalysisRunBundleResponse,
     AnalysisRunResponse,
@@ -50,11 +54,13 @@ class AnalysisRunService:
         supabase: SupabaseRestClient,
         *,
         synthesis_service: FeedbackSynthesisService | None = None,
+        chat_service: FeedbackChatService | None = None,
     ) -> None:
         self._supabase = supabase
         self._synthesis_service = synthesis_service or FeedbackSynthesisService(
             llm_client=None,
         )
+        self._chat_service = chat_service or FeedbackChatService(llm_client=None)
 
     def create_placeholder_run(
         self,
@@ -170,7 +176,7 @@ class AnalysisRunService:
             placeholderMessage=placeholder_message,
         )
 
-    def ask_placeholder_question(
+    def ask_analysis_question(
         self,
         analysis_run_id: str,
         request: AskAnalysisQuestionRequest,
@@ -178,6 +184,11 @@ class AnalysisRunService:
         analysis_run = self._get_analysis_run_row(analysis_run_id)
         dashboard_payload = self._get_dashboard_payload(analysis_run_id)
         feedback_set_id = str(analysis_run["feedback_set_id"])
+        feedback_set = self._get_feedback_set(feedback_set_id)
+        analysis_target = self._supabase.fetch_single_row(
+            "analysis_targets",
+            filters={"id": str(feedback_set["analysis_target_id"])},
+        )
         sources = self._supabase.fetch_rows(
             "data_sources",
             filters={"feedback_set_id": feedback_set_id},
@@ -187,6 +198,17 @@ class AnalysisRunService:
             filters={"feedback_set_id": feedback_set_id},
         )
         scope = request.scope or "all"
+        chat_history = self._get_chat_history_messages(analysis_run_id)
+        dataset_id = self._resolve_demo_product_id(
+            analysis_target=analysis_target,
+            sources=sources,
+            feedback_items=feedback_items,
+        )
+        scoped_items = self._filter_feedback_items_by_scope(feedback_items, scope)
+        normalized_items = [
+            self._normalize_feedback_item(dataset_id, item)
+            for item in scoped_items
+        ]
 
         user_message = self._supabase.insert_row(
             "chat_messages",
@@ -201,13 +223,35 @@ class AnalysisRunService:
             },
         )
 
-        answer_payload = self._build_placeholder_chat_answer(
-            question=request.question,
-            scope=scope,
-            sources=sources,
-            feedback_items=feedback_items,
-            dashboard_payload=dashboard_payload,
+        chat_result = self._chat_service.answer(
+            FeedbackChatRequest(
+                analysis_run_id=analysis_run_id,
+                question=request.question,
+                scope=scope,
+                analysis_goal=str(feedback_set["analysis_goal"]),
+                product_name=str(analysis_target["name"]),
+                product_description=str(analysis_target["description"]),
+                sources=sources,
+                feedback_items=normalized_items,
+                dashboard_payload=dashboard_payload,
+                chat_history=chat_history,
+            )
         )
+        if chat_result is None:
+            answer_payload = self._build_placeholder_chat_answer(
+                question=request.question,
+                scope=scope,
+                sources=sources,
+                feedback_items=feedback_items,
+                dashboard_payload=dashboard_payload,
+            )
+        else:
+            answer_payload = {
+                "answer": chat_result.answer,
+                "evidence": chat_result.evidence,
+                "follow_up_suggestions": chat_result.follow_up_suggestions,
+            }
+
         assistant_message = self._supabase.insert_row(
             "chat_messages",
             {
@@ -229,6 +273,13 @@ class AnalysisRunService:
             userMessage=self._to_chat_message_response(user_message),
             assistantMessage=self._to_chat_message_response(assistant_message),
         )
+
+    def ask_placeholder_question(
+        self,
+        analysis_run_id: str,
+        request: AskAnalysisQuestionRequest,
+    ) -> AskAnalysisQuestionResponse:
+        return self.ask_analysis_question(analysis_run_id, request)
 
     def get_chat_history(
         self,

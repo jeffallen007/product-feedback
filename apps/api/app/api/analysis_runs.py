@@ -56,7 +56,7 @@ def ask_analysis_question(
     service: AnalysisRunService = Depends(get_analysis_run_service),
 ) -> AskAnalysisQuestionResponse:
     request = parse_request_model(payload, AskAnalysisQuestionRequest)
-    return service.ask_placeholder_question(analysis_run_id, request)
+    return service.ask_analysis_question(analysis_run_id, request)
 
 
 @router.get(

@@ -3,6 +3,7 @@ import logging
 from app.clients.supabase import SupabaseRestClient
 from app.config import get_settings
 from app.services.analysis_runs import AnalysisRunService
+from app.services.feedback_chat import FeedbackChatService
 from app.services.feedback_synthesis import FeedbackSynthesisService
 from app.services.feedback_sets import FeedbackSetService
 
@@ -29,4 +30,15 @@ def get_analysis_run_service() -> AnalysisRunService:
             settings.openai_timeout_seconds,
         )
         synthesis_service = FeedbackSynthesisService(llm_client=None)
-    return AnalysisRunService(client, synthesis_service=synthesis_service)
+    try:
+        chat_service = FeedbackChatService.from_settings(settings)
+    except Exception:
+        logger.exception(
+            "Failed to initialize LLM chat service; using deterministic fallback chat. "
+            "openai_key_present=%s model=%s timeout_seconds=%s",
+            bool(settings.openai_api_key),
+            settings.openai_model,
+            settings.openai_timeout_seconds,
+        )
+        chat_service = FeedbackChatService(llm_client=None)
+    return AnalysisRunService(client, synthesis_service=synthesis_service, chat_service=chat_service)
