@@ -53,7 +53,7 @@ export default function Page() {
 
   // Custom path
   const [product, setProduct] = useState<ProductContext>(EMPTY_PRODUCT_CONTEXT)
-  const [selected, setSelected] = useState<WorkflowSourceId[]>(["csv"])
+  const [selected, setSelected] = useState<WorkflowSourceId[]>(["paste"])
   const [searchQuery, setSearchQuery] = useState("")
   const [pasteValue, setPasteValue] = useState("")
 
@@ -88,7 +88,9 @@ export default function Page() {
   function startCustom() {
     setPath("custom")
     setProduct(EMPTY_PRODUCT_CONTEXT)
-    setSelected(["csv"])
+    setSelected(["paste"])
+    setSearchQuery("")
+    setPasteValue("")
     setScreen("sources")
   }
 
@@ -107,6 +109,7 @@ export default function Page() {
       product,
       selectedSourceIds: selected,
       searchQuery,
+      pastedText: pasteValue,
       existingSources: reviewSources,
     })
     setReviewProduct(reviewState.product)
@@ -130,7 +133,9 @@ export default function Page() {
   function startNewAnalysis() {
     setScreen("entry")
     setProduct(EMPTY_PRODUCT_CONTEXT)
-    setSelected(["csv"])
+    setSelected(["paste"])
+    setSearchQuery("")
+    setPasteValue("")
     setReviewSources([])
     setAnalysisRunId(null)
     setSubmissionError(null)

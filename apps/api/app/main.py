@@ -10,6 +10,7 @@ from app.errors import (
     AnalysisRunNotFoundError,
     EmptyFeedbackSetError,
     FeedbackSetNotFoundError,
+    InvalidPastedFeedbackError,
     InvalidDemoProductError,
     MissingSupabaseConfigError,
     SupabaseInsertError,
@@ -76,6 +77,16 @@ def handle_analysis_run_not_found(
     )
 
 
+def handle_invalid_pasted_feedback(
+    _request: Request,
+    exc: InvalidPastedFeedbackError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
+    )
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -114,6 +125,10 @@ def create_app() -> FastAPI:
     app.add_exception_handler(
         AnalysisRunNotFoundError,
         handle_analysis_run_not_found,
+    )
+    app.add_exception_handler(
+        InvalidPastedFeedbackError,
+        handle_invalid_pasted_feedback,
     )
     app.include_router(health_router)
     app.include_router(feedback_sets_router)

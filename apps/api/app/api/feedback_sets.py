@@ -7,6 +7,8 @@ from app.api.request_parsing import parse_request_model
 from app.schemas.feedback_sets import (
     AddDemoSourceRequest,
     AddDemoSourceResponse,
+    AddPastedSourceRequest,
+    AddPastedSourceResponse,
     CreateFeedbackSetRequest,
     CreateFeedbackSetResponse,
 )
@@ -40,3 +42,17 @@ def add_demo_source(
 ) -> AddDemoSourceResponse:
     request = parse_request_model(payload, AddDemoSourceRequest)
     return service.add_demo_source(feedback_set_id, request)
+
+
+@router.post(
+    "/feedback-sets/{feedback_set_id}/sources/pasted",
+    response_model=AddPastedSourceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_pasted_source(
+    feedback_set_id: str,
+    payload: dict[str, Any] = Body(...),
+    service: FeedbackSetService = Depends(get_feedback_set_service),
+) -> AddPastedSourceResponse:
+    request = parse_request_model(payload, AddPastedSourceRequest)
+    return service.add_pasted_source(feedback_set_id, request)

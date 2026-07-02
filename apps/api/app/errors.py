@@ -20,3 +20,7 @@ class EmptyFeedbackSetError(ValueError):
 
 class AnalysisRunNotFoundError(LookupError):
     """Raised when an analysis run does not exist."""
+
+
+class InvalidPastedFeedbackError(ValueError):
+    """Raised when pasted feedback input is empty or invalid."""

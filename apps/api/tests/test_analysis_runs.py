@@ -24,6 +24,7 @@ class FakeAnalysisSupabaseClient:
         analysis_target_name: str = "Pulse Fitness",
         analysis_target_description: str = "A mobile fitness coaching app for guided routines.",
         analysis_goal: str = "Full Product Feedback Synthesis",
+        source_type: str = "review",
         source_label: str = "google_play",
         demo_product_id: str = "productivity_tool",
         dashboard_summary: dict[str, object] | None = None,
@@ -37,6 +38,7 @@ class FakeAnalysisSupabaseClient:
         self.analysis_target_name = analysis_target_name
         self.analysis_target_description = analysis_target_description
         self.analysis_goal = analysis_goal
+        self.source_type = source_type
         self.source_label = source_label
         self.demo_product_id = demo_product_id
         self.dashboard_summary = dashboard_summary
@@ -100,7 +102,7 @@ class FakeAnalysisSupabaseClient:
                     {
                         "id": "source_789",
                         "feedback_set_id": filters["feedback_set_id"],
-                        "source_type": "review",
+                        "source_type": self.source_type,
                         "source_label": self.source_label,
                         "item_count": self.total_feedback_count,
                         "status": "ready",
@@ -120,7 +122,7 @@ class FakeAnalysisSupabaseClient:
                     "raw_text": self._feedback_item_text(index),
                     "normalized_text": self._feedback_item_normalized_text(index),
                     "rating": self._feedback_item_rating(index),
-                    "source_type": "review",
+                    "source_type": self.source_type,
                     "source_label": self.source_label,
                     "metadata_json": self._feedback_item_metadata(index),
                 }
@@ -461,6 +463,37 @@ def test_create_placeholder_run_keeps_full_goal_sections() -> None:
     assert payload["painPoints"] != []
     assert payload["featureRequests"] != []
     assert payload["roadmapRecommendations"] != []
+
+
+def test_create_placeholder_run_succeeds_for_pasted_feedback_source() -> None:
+    client = FakeAnalysisSupabaseClient(
+        analysis_target_name="Acme PM",
+        analysis_target_description="A project planning tool for cross-functional teams.",
+        source_type="pasted_text",
+        source_label="Pasted Feedback",
+        demo_product_id="productivity_tool",
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.create_placeholder_run(
+        "set_456",
+        SynthesizeFeedbackSetRequest(),
+    )
+    dashboard_insert = next(call[1] for call in client.calls if call[0] == "dashboard_summaries")
+    source_mix = dashboard_insert["summary_payload"]["sourceMix"]
+
+    assert response.analysis_run.id == "run_123"
+    assert response.analysis_run.metadata["source_count"] == 1
+    assert source_mix == [
+        {
+            "sourceId": "source_789",
+            "sourceType": "pasted_text",
+            "label": "Pasted Feedback",
+            "count": 12,
+            "unit": "items",
+            "percent": 100,
+        }
+    ]
 
 
 def test_create_placeholder_run_rejects_missing_feedback_set() -> None:

@@ -54,3 +54,12 @@ class AddDemoSourceRequest(CamelModel):
 
 class AddDemoSourceResponse(CamelModel):
     source: DataSourceResponse
+
+
+class AddPastedSourceRequest(CamelModel):
+    pasted_text: str
+    source_label: str | None = None
+
+
+class AddPastedSourceResponse(CamelModel):
+    source: DataSourceResponse

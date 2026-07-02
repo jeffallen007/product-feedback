@@ -69,6 +69,17 @@ const BACKEND_DEMO_PRODUCT_IDS: Record<
 export async function createFeedbackSet(
   input: CreateFeedbackSetRequest,
 ): Promise<CreateFeedbackSetResponse> {
+  if (isBackendDemoEnabled()) {
+    return backendRequest<CreateFeedbackSetResponse>("/feedback-sets", {
+      method: "POST",
+      body: JSON.stringify({
+        analysisTarget: input.analysisTarget,
+        analysisGoal: input.analysisGoal,
+        name: input.name ?? undefined,
+      }),
+    })
+  }
+
   return createMockFeedbackSet(input)
 }
 
@@ -174,11 +185,24 @@ export async function addCsvSource(
 export async function addPastedSource(
   input: AddPastedSourceRequest,
 ): Promise<AddPastedSourceResponse> {
+  if (isBackendDemoEnabled()) {
+    return backendRequest<AddPastedSourceResponse>(
+      `/feedback-sets/${input.feedbackSetId}/sources/pasted`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          pastedText: input.pastedText,
+          sourceLabel: input.sourceLabel,
+        }),
+      },
+    )
+  }
+
   await delay(80)
   const source = createSource({
     feedbackSetId: input.feedbackSetId,
     sourceType: "pasted_text",
-    sourceLabel: input.sourceLabel ?? "Pasted Reviews",
+    sourceLabel: input.sourceLabel ?? "Pasted Feedback",
     itemCount: input.itemCount ?? 24,
     metadata: {
       pastedLength: input.pastedText?.length ?? 0,
@@ -210,6 +234,16 @@ export async function addXSource(
 export async function synthesizeFeedbackSet(
   input: SynthesizeFeedbackSetRequest,
 ): Promise<SynthesizeFeedbackSetResponse> {
+  if (isBackendDemoEnabled()) {
+    return backendRequest<SynthesizeFeedbackSetResponse>(
+      `/feedback-sets/${input.feedbackSetId}/synthesize`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+    )
+  }
+
   return synthesizeMockFeedbackSet(input)
 }
 
@@ -578,8 +612,8 @@ export function buildCustomReviewState(
       createReviewSource({
         id: "pasted",
         sourceType: "pasted_text",
-        sourceLabel: "Pasted Reviews",
-        itemCount: 24,
+        sourceLabel: "Pasted Feedback",
+        itemCount: countPastedFeedbackItems(request.pastedText),
       }),
     )
   }
@@ -603,6 +637,17 @@ export function buildCustomReviewState(
     product: request.product,
     sources,
   }
+}
+
+export function countPastedFeedbackItems(pastedText?: string): number {
+  if (!pastedText) {
+    return 0
+  }
+
+  return pastedText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0).length
 }
 
 function buildDashboardPayload(

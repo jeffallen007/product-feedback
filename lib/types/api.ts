@@ -154,6 +154,7 @@ export interface BuildCustomReviewStateRequest {
   product: ProductContext
   selectedSourceIds: WorkflowSourceId[]
   searchQuery: string
+  pastedText?: string
   existingSources?: ConfiguredSource[]
 }
 

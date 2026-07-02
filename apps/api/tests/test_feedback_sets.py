@@ -4,9 +4,9 @@ from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_feedback_set_service
 from app import demo_ingest
-from app.errors import MissingSupabaseConfigError, SupabaseInsertError
+from app.errors import InvalidPastedFeedbackError, MissingSupabaseConfigError, SupabaseInsertError
 from app.main import app
-from app.schemas.feedback_sets import AddDemoSourceRequest, CreateFeedbackSetRequest
+from app.schemas.feedback_sets import AddDemoSourceRequest, AddPastedSourceRequest, CreateFeedbackSetRequest
 from app.services.feedback_sets import FeedbackSetService
 
 
@@ -391,3 +391,143 @@ def test_add_demo_source_route_returns_supabase_failure_for_feedback_items() -> 
 
     assert response.status_code == 502
     assert "feedback_items" in response.json()["detail"]
+
+
+def test_feedback_set_service_adds_pasted_source_and_updates_total_count() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+
+    response = service.add_pasted_source(
+        "set_456",
+        AddPastedSourceRequest(
+            pastedText="First issue\nSecond issue\nThird issue",
+        ),
+    )
+
+    assert [call[0] for call in client.calls] == [
+        "feedback_sets:fetch",
+        "data_sources",
+        "feedback_items",
+        "feedback_sets:update",
+    ]
+    assert response.source.feedback_set_id == "set_456"
+    assert response.source.source_type == "pasted_text"
+    assert response.source.source_label == "Pasted Feedback"
+    assert response.source.item_count == 3
+    assert len(client.inserted_feedback_items) == 3
+    assert [item["raw_text"] for item in client.inserted_feedback_items] == [
+        "First issue",
+        "Second issue",
+        "Third issue",
+    ]
+    assert all(item["feedback_date"] is None for item in client.inserted_feedback_items)
+    assert all(item["author_handle"] is None for item in client.inserted_feedback_items)
+    assert client.inserted_feedback_items[0]["metadata_json"]["line_index"] == 1
+    update_call = client.calls[-1][1]
+    assert isinstance(update_call, dict)
+    assert update_call["payload"]["total_feedback_count"] == 8
+
+
+def test_feedback_set_service_ignores_blank_lines_in_pasted_feedback() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+
+    response = service.add_pasted_source(
+        "set_456",
+        AddPastedSourceRequest(
+            pastedText="First issue\n\n   \nSecond issue\n",
+        ),
+    )
+
+    assert response.source.item_count == 2
+    assert [item["raw_text"] for item in client.inserted_feedback_items] == [
+        "First issue",
+        "Second issue",
+    ]
+
+
+def test_feedback_set_service_treats_single_paragraph_as_one_feedback_item() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+
+    response = service.add_pasted_source(
+        "set_456",
+        AddPastedSourceRequest(
+            pastedText="The product is useful but setup is confusing and notifications are noisy.",
+        ),
+    )
+
+    assert response.source.item_count == 1
+    assert len(client.inserted_feedback_items) == 1
+    assert client.inserted_feedback_items[0]["raw_text"].startswith("The product is useful")
+
+
+def test_feedback_set_service_rejects_empty_pasted_feedback() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+
+    try:
+        service.add_pasted_source(
+            "set_456",
+            AddPastedSourceRequest(
+                pastedText=" \n\t\n",
+            ),
+        )
+    except InvalidPastedFeedbackError as exc:
+        assert "non-empty line" in str(exc)
+    else:
+        raise AssertionError("Expected InvalidPastedFeedbackError")
+
+
+def test_add_pasted_source_route_returns_frontend_compatible_shape() -> None:
+    fake_response = {
+        "source": {
+            "id": "source_789",
+            "feedbackSetId": "set_456",
+            "sourceType": "pasted_text",
+            "sourceLabel": "Pasted Feedback",
+            "itemCount": 2,
+            "status": "ready",
+            "metadata": {
+                "source_origin": "pasted_text",
+                "parsing_strategy": "newline_split_v1",
+                "character_count": 24,
+                "item_count": 2,
+            },
+            "createdAt": "2026-06-17T12:02:00Z",
+        },
+    }
+
+    class FakeService:
+        def add_pasted_source(self, _feedback_set_id, _request):  # type: ignore[no-untyped-def]
+            return fake_response
+
+    app.dependency_overrides[get_feedback_set_service] = lambda: FakeService()
+    client = TestClient(app)
+
+    response = client.post(
+        "/feedback-sets/set_456/sources/pasted",
+        json={"pastedText": "First issue\nSecond issue"},
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert response.json() == fake_response
+
+
+def test_add_pasted_source_route_returns_bad_request_for_empty_feedback() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+    app.dependency_overrides[get_feedback_set_service] = lambda: service
+    test_client = TestClient(app)
+
+    response = test_client.post(
+        "/feedback-sets/set_456/sources/pasted",
+        json={"pastedText": " \n\n "},
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert "non-empty line" in response.json()["detail"]

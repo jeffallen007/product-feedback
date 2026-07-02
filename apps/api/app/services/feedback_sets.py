@@ -5,10 +5,17 @@ from app.demo_ingest import (
     normalized_review_metadata,
 )
 from app.demo_synthesis import infer_demo_feedback_attributes
-from app.errors import FeedbackSetNotFoundError, InvalidDemoProductError, SupabaseInsertError
+from app.errors import (
+    FeedbackSetNotFoundError,
+    InvalidDemoProductError,
+    InvalidPastedFeedbackError,
+    SupabaseInsertError,
+)
 from app.schemas.feedback_sets import (
     AddDemoSourceRequest,
     AddDemoSourceResponse,
+    AddPastedSourceRequest,
+    AddPastedSourceResponse,
     AnalysisTargetResponse,
     CreateFeedbackSetRequest,
     CreateFeedbackSetResponse,
@@ -166,3 +173,97 @@ class FeedbackSetService:
                 createdAt=source_row["created_at"],
             ),
         )
+
+    def add_pasted_source(
+        self,
+        feedback_set_id: str,
+        request: AddPastedSourceRequest,
+    ) -> AddPastedSourceResponse:
+        feedback_items = self._split_pasted_feedback(request.pasted_text)
+        if not feedback_items:
+            raise InvalidPastedFeedbackError(
+                "Pasted feedback must include at least one non-empty line.",
+            )
+
+        try:
+            feedback_set_row = self._supabase.fetch_single_row(
+                "feedback_sets",
+                filters={"id": feedback_set_id},
+            )
+        except SupabaseInsertError as exc:
+            if "no rows" in str(exc).lower():
+                raise FeedbackSetNotFoundError(
+                    f"Feedback set '{feedback_set_id}' was not found.",
+                ) from exc
+            raise
+
+        source_label = request.source_label or "Pasted Feedback"
+        source_row = self._supabase.insert_row(
+            "data_sources",
+            {
+                "feedback_set_id": feedback_set_id,
+                "source_type": "pasted_text",
+                "source_label": source_label,
+                "item_count": len(feedback_items),
+                "status": "ready",
+                "metadata_json": {
+                    "source_origin": "pasted_text",
+                    "parsing_strategy": "newline_split_v1",
+                    "character_count": len(request.pasted_text),
+                    "item_count": len(feedback_items),
+                },
+            },
+        )
+
+        feedback_item_rows = []
+        for index, feedback_text in enumerate(feedback_items, start=1):
+            feedback_item_rows.append(
+                {
+                    "feedback_set_id": feedback_set_id,
+                    "source_id": source_row["id"],
+                    "source_type": "pasted_text",
+                    "source_label": source_label,
+                    "raw_text": feedback_text,
+                    "normalized_text": feedback_text,
+                    "rating": None,
+                    "feedback_date": None,
+                    "author_handle": None,
+                    "url": None,
+                    "category": None,
+                    "sentiment": None,
+                    "severity": None,
+                    "churn_risk": None,
+                    "metadata_json": {
+                        "source_type": "pasted_text",
+                        "source_label": source_label,
+                        "feedback_text": feedback_text,
+                        "parsing_strategy": "newline_split_v1",
+                        "line_index": index,
+                    },
+                }
+            )
+        self._supabase.insert_rows("feedback_items", feedback_item_rows)
+
+        updated_total = int(feedback_set_row["total_feedback_count"]) + len(feedback_items)
+        self._supabase.update_row(
+            "feedback_sets",
+            payload={"total_feedback_count": updated_total},
+            filters={"id": feedback_set_id},
+        )
+
+        return AddPastedSourceResponse(
+            source=DataSourceResponse(
+                id=str(source_row["id"]),
+                feedbackSetId=str(source_row["feedback_set_id"]),
+                sourceType=str(source_row["source_type"]),
+                sourceLabel=str(source_row["source_label"]),
+                itemCount=int(source_row["item_count"]),
+                status=str(source_row["status"]),
+                metadata=source_row.get("metadata_json", {}),
+                createdAt=source_row["created_at"],
+            ),
+        )
+
+    @staticmethod
+    def _split_pasted_feedback(pasted_text: str) -> list[str]:
+        return [line.strip() for line in pasted_text.splitlines() if line.strip()]
