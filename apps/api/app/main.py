@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.errors import (
     AnalysisRunNotFoundError,
     EmptyFeedbackSetError,
+    InvalidCsvUploadError,
     FeedbackSetNotFoundError,
     InvalidPastedFeedbackError,
     InvalidDemoProductError,
@@ -87,6 +88,16 @@ def handle_invalid_pasted_feedback(
     )
 
 
+def handle_invalid_csv_upload(
+    _request: Request,
+    exc: InvalidCsvUploadError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
+    )
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
@@ -129,6 +140,10 @@ def create_app() -> FastAPI:
     app.add_exception_handler(
         InvalidPastedFeedbackError,
         handle_invalid_pasted_feedback,
+    )
+    app.add_exception_handler(
+        InvalidCsvUploadError,
+        handle_invalid_csv_upload,
     )
     app.include_router(health_router)
     app.include_router(feedback_sets_router)

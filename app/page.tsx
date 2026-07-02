@@ -22,13 +22,13 @@ import {
   addCsvSource,
   addDemoSource,
   addPastedSource,
-  addXSource,
   buildCustomReviewState,
   buildDemoReviewState,
   createFeedbackSet,
   runDemoAnalysis,
   synthesizeFeedbackSet,
 } from "@/lib/services/analysis-service"
+import { parseCsvUpload } from "@/lib/services/csv-upload"
 
 type Path = "demo" | "custom"
 type Screen =
@@ -55,6 +55,10 @@ export default function Page() {
   const [product, setProduct] = useState<ProductContext>(EMPTY_PRODUCT_CONTEXT)
   const [selected, setSelected] = useState<WorkflowSourceId[]>(["paste"])
   const [searchQuery, setSearchQuery] = useState("")
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvFileName, setCsvFileName] = useState<string | null>(null)
+  const [csvItemCount, setCsvItemCount] = useState(0)
+  const [csvErrorMessage, setCsvErrorMessage] = useState<string | null>(null)
   const [pasteValue, setPasteValue] = useState("")
 
   // Review
@@ -90,6 +94,10 @@ export default function Page() {
     setProduct(EMPTY_PRODUCT_CONTEXT)
     setSelected(["paste"])
     setSearchQuery("")
+    setCsvFile(null)
+    setCsvFileName(null)
+    setCsvItemCount(0)
+    setCsvErrorMessage(null)
     setPasteValue("")
     setScreen("sources")
   }
@@ -110,6 +118,8 @@ export default function Page() {
       selectedSourceIds: selected,
       searchQuery,
       pastedText: pasteValue,
+      csvFileName: csvFileName ?? undefined,
+      csvItemCount,
       existingSources: reviewSources,
     })
     setReviewProduct(reviewState.product)
@@ -135,10 +145,42 @@ export default function Page() {
     setProduct(EMPTY_PRODUCT_CONTEXT)
     setSelected(["paste"])
     setSearchQuery("")
+    setCsvFile(null)
+    setCsvFileName(null)
+    setCsvItemCount(0)
+    setCsvErrorMessage(null)
     setPasteValue("")
     setReviewSources([])
     setAnalysisRunId(null)
     setSubmissionError(null)
+  }
+
+  async function handleCsvFileChange(file: File | null) {
+    setCsvFile(file)
+    setCsvErrorMessage(null)
+
+    if (!file) {
+      setCsvFileName(null)
+      setCsvItemCount(0)
+      return
+    }
+
+    try {
+      const parsed = await parseCsvUpload(file)
+      setCsvFileName(parsed.fileName)
+      setCsvItemCount(parsed.itemCount)
+      if (parsed.itemCount === 0) {
+        setCsvErrorMessage(
+          "CSV must include a feedback_text column with at least one non-empty value.",
+        )
+      }
+    } catch (error) {
+      setCsvFileName(file.name)
+      setCsvItemCount(0)
+      setCsvErrorMessage(
+        error instanceof Error ? error.message : "Unable to read the CSV file.",
+      )
+    }
   }
 
   async function handleSynthesize() {
@@ -189,9 +231,14 @@ export default function Page() {
         }
 
         if (source.sourceType === "csv_upload") {
+          if (!csvFile) {
+            throw new Error("Select a CSV file before synthesizing.")
+          }
           await addCsvSource({
             feedbackSetId: feedbackSet.id,
             sourceLabel: source.sourceLabel,
+            file: csvFile,
+            fileName: csvFile.name,
             itemCount: source.itemCount,
           })
           continue
@@ -207,15 +254,7 @@ export default function Page() {
           continue
         }
 
-        await addXSource({
-          feedbackSetId: feedbackSet.id,
-          sourceLabel: source.sourceLabel,
-          query:
-            source.mockConfig?.xQuery ??
-            searchQuery ??
-            "Monday.com notifications",
-          itemCount: source.itemCount,
-        })
+        throw new Error("X Search is a future feature and is not available in this MVP.")
       }
 
       const analysisRun = await synthesizeFeedbackSet({
@@ -321,6 +360,12 @@ export default function Page() {
               selected={selected}
               searchQuery={searchQuery}
               onSearchQueryChange={setSearchQuery}
+              csvFileName={csvFileName}
+              csvItemCount={csvItemCount}
+              csvErrorMessage={csvErrorMessage}
+              onCsvFileChange={(file) => {
+                void handleCsvFileChange(file)
+              }}
               pasteValue={pasteValue}
               onPasteChange={setPasteValue}
               onBack={() => setScreen("sources")}

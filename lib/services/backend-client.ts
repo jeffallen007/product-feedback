@@ -24,11 +24,14 @@ export async function backendRequest<TResponse>(
 
   let response: Response
 
+  const isFormDataBody =
+    typeof FormData !== "undefined" && init?.body instanceof FormData
+
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormDataBody ? {} : { "Content-Type": "application/json" }),
         ...(init?.headers ?? {}),
       },
       cache: "no-store",

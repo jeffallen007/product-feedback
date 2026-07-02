@@ -63,3 +63,7 @@ class AddPastedSourceRequest(CamelModel):
 
 class AddPastedSourceResponse(CamelModel):
     source: DataSourceResponse
+
+
+class AddCsvSourceResponse(CamelModel):
+    source: DataSourceResponse

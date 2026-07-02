@@ -24,3 +24,7 @@ class AnalysisRunNotFoundError(LookupError):
 
 class InvalidPastedFeedbackError(ValueError):
     """Raised when pasted feedback input is empty or invalid."""
+
+
+class InvalidCsvUploadError(ValueError):
+    """Raised when an uploaded CSV file is empty, malformed, or unsupported."""

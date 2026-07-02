@@ -50,16 +50,24 @@ export function StepSources({
         {SOURCE_DEFINITIONS.map((source) => {
           const isSelected = selected.includes(source.id)
           const Icon = source.icon
+          const isAvailable = source.isAvailable !== false
           return (
             <button
               key={source.id}
               type="button"
-              onClick={() => onToggle(source.id)}
+              onClick={() => {
+                if (isAvailable) {
+                  onToggle(source.id)
+                }
+              }}
               aria-pressed={isSelected}
-              className={`group relative flex flex-col gap-3 rounded-xl border p-5 text-left ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+              disabled={!isAvailable}
+              className={`group relative flex flex-col gap-3 rounded-xl border p-5 text-left ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70 ${
                 isSelected
                   ? "border-primary bg-accent/40 shadow-sm"
-                  : "border-border bg-card hover:border-foreground/20"
+                  : isAvailable
+                    ? "border-border bg-card hover:border-foreground/20"
+                    : "border-border bg-card"
               }`}
             >
               <div className="flex items-center justify-between">
@@ -80,9 +88,16 @@ export function StepSources({
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-sm font-semibold text-foreground">
-                  {source.title}
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {source.title}
+                  </h3>
+                  {!isAvailable && source.availabilityLabel && (
+                    <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      {source.availabilityLabel}
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {source.description}
                 </p>

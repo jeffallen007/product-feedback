@@ -2,12 +2,10 @@
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { PrivacyNotice } from "@/components/privacy-notice"
 import { ProductContextForm } from "@/components/product-context-form"
 import { ArrowRight, ArrowLeft, Upload } from "lucide-react"
-import { SEARCH_CHIPS } from "@/lib/config/workflow"
 import type {
   ProductContext,
   WorkflowSourceId,
@@ -36,6 +34,10 @@ export function StepConfigure({
   selected,
   searchQuery,
   onSearchQueryChange,
+  csvFileName,
+  csvItemCount,
+  csvErrorMessage,
+  onCsvFileChange,
   pasteValue,
   onPasteChange,
   onBack,
@@ -46,11 +48,19 @@ export function StepConfigure({
   selected: WorkflowSourceId[]
   searchQuery: string
   onSearchQueryChange: (q: string) => void
+  csvFileName: string | null
+  csvItemCount: number
+  csvErrorMessage: string | null
+  onCsvFileChange: (file: File | null) => void
   pasteValue: string
   onPasteChange: (v: string) => void
   onBack: () => void
   onReview: () => void
 }) {
+  const hasValidCsvSelection = !selected.includes("csv")
+    ? true
+    : Boolean(csvFileName) && csvItemCount > 0 && !csvErrorMessage
+
   return (
     <div>
       <div className="mb-6">
@@ -78,11 +88,35 @@ export function StepConfigure({
                 Drop a CSV here or browse files
               </span>
               <span className="mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
-                Supported columns: comment, feedback, review, rating, source,
-                date, user_segment, product_area.
+                Required column: feedback_text. Optional: rating, date or
+                feedback_date, username or author_handle, source_label,
+                product_area, category.
               </span>
-              <input type="file" accept=".csv" className="sr-only" />
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="sr-only"
+                onChange={(event) =>
+                  onCsvFileChange(event.target.files?.[0] ?? null)
+                }
+              />
             </label>
+            {(csvFileName || csvErrorMessage) && (
+              <div className="mt-4 rounded-lg border border-border bg-secondary/30 px-4 py-3 text-sm">
+                {csvFileName && (
+                  <p className="font-medium text-foreground">{csvFileName}</p>
+                )}
+                {!csvErrorMessage && csvFileName && (
+                  <p className="text-xs text-muted-foreground">
+                    {csvItemCount} valid feedback row
+                    {csvItemCount === 1 ? "" : "s"} detected for review.
+                  </p>
+                )}
+                {csvErrorMessage && (
+                  <p className="text-xs text-destructive">{csvErrorMessage}</p>
+                )}
+              </div>
+            )}
             <PrivacyNotice className="mt-4">
               Do not upload sensitive or confidential information. Uploaded data
               may be processed by AI services.
@@ -106,28 +140,6 @@ export function StepConfigure({
           </Card>
         )}
 
-        {selected.includes("search") && (
-          <Card className="p-5">
-            <PanelHeader title="Search X" badge="Live posts" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => onSearchQueryChange(e.target.value)}
-              placeholder="Search product, company, handle, or keyword"
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              {SEARCH_CHIPS.map((chip) => (
-                <button
-                  key={chip}
-                  type="button"
-                  onClick={() => onSearchQueryChange(chip)}
-                  className="rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-                >
-                  {chip}
-                </button>
-              ))}
-            </div>
-          </Card>
-        )}
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-4">
@@ -135,7 +147,7 @@ export function StepConfigure({
           <ArrowLeft className="size-4" aria-hidden="true" />
           Back
         </Button>
-        <Button onClick={onReview}>
+        <Button onClick={onReview} disabled={!hasValidCsvSelection}>
           Review Feedback Set
           <ArrowRight className="size-4" aria-hidden="true" />
         </Button>

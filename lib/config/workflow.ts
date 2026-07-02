@@ -25,6 +25,8 @@ export const SOURCE_DEFINITIONS: SourceDefinition[] = [
       "Pull recent public posts mentioning a product, company, handle, or keyword.",
     icon: Search,
     sourceType: "x_search",
+    isAvailable: false,
+    availabilityLabel: "Future Feature",
   },
 ]
 

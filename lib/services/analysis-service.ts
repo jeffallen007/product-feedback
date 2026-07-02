@@ -4,9 +4,11 @@ import {
   MOCK_DASHBOARD_PAYLOAD,
 } from "@/lib/mocks/dashboard"
 import { DEMO_PRODUCTS } from "@/lib/mocks/workflow"
+import { SOURCE_DEFINITIONS } from "@/lib/config/workflow"
 import { composeDashboardForGoal } from "@/lib/services/dashboard-goal-composition"
 import { isBackendDemoEnabled, backendRequest } from "@/lib/services/backend-client"
 import { mapBackendBundleResponse } from "@/lib/services/backend-mappers"
+import { countCsvFeedbackItems } from "@/lib/services/csv-upload"
 import type {
   AnalysisBundleMeta,
   AddCsvSourceRequest,
@@ -167,11 +169,31 @@ export async function addDemoSource(
 export async function addCsvSource(
   input: AddCsvSourceRequest,
 ): Promise<AddCsvSourceResponse> {
+  if (isBackendDemoEnabled()) {
+    if (!input.file) {
+      throw new Error("Select a CSV file before reviewing the feedback set.")
+    }
+
+    const formData = new FormData()
+    formData.append("file", input.file, input.file.name)
+    if (input.sourceLabel) {
+      formData.append("source_label", input.sourceLabel)
+    }
+
+    return backendRequest<AddCsvSourceResponse>(
+      `/feedback-sets/${input.feedbackSetId}/sources/csv`,
+      {
+        method: "POST",
+        body: formData,
+      },
+    )
+  }
+
   await delay(80)
   const source = createSource({
     feedbackSetId: input.feedbackSetId,
     sourceType: "csv_upload",
-    sourceLabel: input.sourceLabel ?? "Uploaded CSV",
+    sourceLabel: input.sourceLabel ?? input.fileName ?? "CSV Upload",
     itemCount: input.itemCount ?? 318,
     metadata: {
       fileName: input.fileName ?? "uploaded-feedback.csv",
@@ -595,17 +617,23 @@ export function buildDemoReviewState(
 export function buildCustomReviewState(
   request: BuildCustomReviewStateRequest,
 ): BuildCustomReviewStateResponse {
+  const sourceDefinitions = new Map(
+    SOURCE_DEFINITIONS.map((source) => [source.id, source]),
+  )
   const sources = (request.existingSources ?? []).filter(
     (source) => source.sourceType === "demo_dataset",
   )
 
-  if (request.selectedSourceIds.includes("csv")) {
+  if (
+    request.selectedSourceIds.includes("csv") &&
+    sourceDefinitions.get("csv")?.isAvailable !== false
+  ) {
     sources.push(
       createReviewSource({
         id: "csv-upload",
         sourceType: "csv_upload",
-        sourceLabel: "Uploaded CSV",
-        itemCount: 318,
+        sourceLabel: request.csvFileName ?? "CSV Upload",
+        itemCount: request.csvItemCount ?? 0,
       }),
     )
   }
@@ -621,7 +649,10 @@ export function buildCustomReviewState(
     )
   }
 
-  if (request.selectedSourceIds.includes("search")) {
+  if (
+    request.selectedSourceIds.includes("search") &&
+    sourceDefinitions.get("search")?.isAvailable !== false
+  ) {
     const query = request.searchQuery || "Monday.com notifications"
     sources.push(
       createReviewSource({
@@ -652,6 +683,8 @@ export function countPastedFeedbackItems(pastedText?: string): number {
     .map((line) => line.trim())
     .filter((line) => line.length > 0).length
 }
+
+export { countCsvFeedbackItems }
 
 function buildDashboardPayload(
   analysisRunId: string,

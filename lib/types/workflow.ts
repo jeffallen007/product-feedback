@@ -26,6 +26,8 @@ export interface SourceDefinition {
   description: string
   icon: LucideIcon
   sourceType: SourceType
+  isAvailable?: boolean
+  availabilityLabel?: string
 }
 
 export interface DemoProductOption {

@@ -4,9 +4,18 @@ from fastapi.testclient import TestClient
 
 from app.api.dependencies import get_feedback_set_service
 from app import demo_ingest
-from app.errors import InvalidPastedFeedbackError, MissingSupabaseConfigError, SupabaseInsertError
+from app.errors import (
+    InvalidCsvUploadError,
+    InvalidPastedFeedbackError,
+    MissingSupabaseConfigError,
+    SupabaseInsertError,
+)
 from app.main import app
-from app.schemas.feedback_sets import AddDemoSourceRequest, AddPastedSourceRequest, CreateFeedbackSetRequest
+from app.schemas.feedback_sets import (
+    AddDemoSourceRequest,
+    AddPastedSourceRequest,
+    CreateFeedbackSetRequest,
+)
 from app.services.feedback_sets import FeedbackSetService
 
 
@@ -531,3 +540,150 @@ def test_add_pasted_source_route_returns_bad_request_for_empty_feedback() -> Non
 
     assert response.status_code == 400
     assert "non-empty line" in response.json()["detail"]
+
+
+def test_feedback_set_service_adds_csv_source_and_updates_total_count() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+
+    response = service.add_csv_source(
+        "set_456",
+        file_name="feedback.csv",
+        file_bytes=(
+            b"feedback_text,rating,feedback_date,author_handle,product_area,category,extra_col\n"
+            b"First issue,2,2026-06-01,jane,notifications,ux_issue,alpha\n"
+            b"Second issue,4,2026-06-02,john,setup,feature_request,beta\n"
+        ),
+    )
+
+    assert [call[0] for call in client.calls] == [
+        "feedback_sets:fetch",
+        "data_sources",
+        "feedback_items",
+        "feedback_sets:update",
+    ]
+    assert response.source.feedback_set_id == "set_456"
+    assert response.source.source_type == "csv_upload"
+    assert response.source.source_label == "CSV Upload"
+    assert response.source.item_count == 2
+    assert len(client.inserted_feedback_items) == 2
+    assert client.inserted_feedback_items[0]["rating"] == 2.0
+    assert client.inserted_feedback_items[0]["author_handle"] == "jane"
+    assert client.inserted_feedback_items[0]["category"] == "ux_issue"
+    assert client.inserted_feedback_items[0]["metadata_json"]["product_area"] == "notifications"
+    assert client.inserted_feedback_items[0]["metadata_json"]["extra_columns"] == {
+        "extra_col": "alpha",
+    }
+    update_call = client.calls[-1][1]
+    assert isinstance(update_call, dict)
+    assert update_call["payload"]["total_feedback_count"] == 7
+
+
+def test_feedback_set_service_ignores_blank_csv_feedback_rows() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+
+    response = service.add_csv_source(
+        "set_456",
+        file_name="feedback.csv",
+        file_bytes=(
+            b"feedback_text,rating\n"
+            b"First issue,2\n"
+            b" ,3\n"
+            b"Second issue,4\n"
+        ),
+    )
+
+    assert response.source.item_count == 2
+    assert [item["raw_text"] for item in client.inserted_feedback_items] == [
+        "First issue",
+        "Second issue",
+    ]
+
+
+def test_feedback_set_service_rejects_csv_without_feedback_text_column() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+
+    try:
+        service.add_csv_source(
+            "set_456",
+            file_name="feedback.csv",
+            file_bytes=b"comment,rating\nHello,5\n",
+        )
+    except InvalidCsvUploadError as exc:
+        assert "feedback_text column" in str(exc)
+    else:
+        raise AssertionError("Expected InvalidCsvUploadError")
+
+
+def test_feedback_set_service_rejects_csv_with_no_valid_feedback_rows() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+
+    try:
+        service.add_csv_source(
+            "set_456",
+            file_name="feedback.csv",
+            file_bytes=b"feedback_text,rating\n ,5\n\t,4\n",
+        )
+    except InvalidCsvUploadError as exc:
+        assert "non-empty feedback_text value" in str(exc)
+    else:
+        raise AssertionError("Expected InvalidCsvUploadError")
+
+
+def test_add_csv_source_route_returns_frontend_compatible_shape() -> None:
+    fake_response = {
+        "source": {
+            "id": "source_789",
+            "feedbackSetId": "set_456",
+            "sourceType": "csv_upload",
+            "sourceLabel": "CSV Upload",
+            "itemCount": 2,
+            "status": "ready",
+            "metadata": {
+                "source_origin": "csv_upload",
+                "file_name": "feedback.csv",
+                "processed_row_count": 2,
+            },
+            "createdAt": "2026-06-17T12:02:00Z",
+        },
+    }
+
+    class FakeService:
+        def add_csv_source(self, _feedback_set_id, *, file_name, file_bytes, source_label):  # type: ignore[no-untyped-def]
+            assert file_name == "feedback.csv"
+            assert file_bytes.startswith(b"feedback_text")
+            assert source_label is None
+            return fake_response
+
+    app.dependency_overrides[get_feedback_set_service] = lambda: FakeService()
+    client = TestClient(app)
+
+    response = client.post(
+        "/feedback-sets/set_456/sources/csv",
+        files={"file": ("feedback.csv", b"feedback_text\nFirst issue\n", "text/csv")},
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert response.json() == fake_response
+
+
+def test_add_csv_source_route_returns_bad_request_for_missing_feedback_text_column() -> None:
+    client = FakeSupabaseClient()
+    service = FeedbackSetService(client)  # type: ignore[arg-type]
+    app.dependency_overrides[get_feedback_set_service] = lambda: service
+    test_client = TestClient(app)
+
+    response = test_client.post(
+        "/feedback-sets/set_456/sources/csv",
+        files={"file": ("feedback.csv", b"comment\nHello\n", "text/csv")},
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 400
+    assert "feedback_text column" in response.json()["detail"]

@@ -45,6 +45,7 @@ export interface AddDemoSourceResponse {
 
 export interface AddCsvSourceRequest {
   feedbackSetId: string
+  file?: File
   sourceLabel?: string
   fileName?: string
   itemCount?: number
@@ -155,6 +156,8 @@ export interface BuildCustomReviewStateRequest {
   selectedSourceIds: WorkflowSourceId[]
   searchQuery: string
   pastedText?: string
+  csvFileName?: string
+  csvItemCount?: number
   existingSources?: ConfiguredSource[]
 }
 

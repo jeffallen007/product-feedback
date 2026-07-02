@@ -496,6 +496,27 @@ def test_create_placeholder_run_succeeds_for_pasted_feedback_source() -> None:
     ]
 
 
+def test_create_placeholder_run_succeeds_for_csv_feedback_source() -> None:
+    client = FakeAnalysisSupabaseClient(
+        analysis_target_name="Acme PM",
+        analysis_target_description="A project planning tool for cross-functional teams.",
+        source_type="csv_upload",
+        source_label="CSV Upload",
+        demo_product_id="productivity_tool",
+    )
+    service = AnalysisRunService(client)  # type: ignore[arg-type]
+
+    response = service.create_placeholder_run(
+        "set_456",
+        SynthesizeFeedbackSetRequest(),
+    )
+    bundle = service.get_analysis_run_bundle(response.analysis_run.id)
+
+    assert response.analysis_run.id == "run_123"
+    assert bundle.sources[0].source_type == "csv_upload"
+    assert bundle.sources[0].source_label == "CSV Upload"
+
+
 def test_create_placeholder_run_rejects_missing_feedback_set() -> None:
     class MissingFeedbackSetClient(FakeAnalysisSupabaseClient):
         def fetch_single_row(self, table: str, *, filters: dict[str, str]) -> dict[str, object]:
