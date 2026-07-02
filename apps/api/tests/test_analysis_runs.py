@@ -15,6 +15,68 @@ from app.schemas.chat import AskAnalysisQuestionRequest
 from app.services.analysis_runs import AnalysisRunService
 
 
+class FakeSynthesisService:
+    def __init__(
+        self,
+        *,
+        synthesis_method: str = "deterministic_fallback",
+        executive_summary: str = "Synthetic summary.",
+    ) -> None:
+        self.synthesis_method = synthesis_method
+        self.executive_summary = executive_summary
+
+    def synthesize(self, request):  # type: ignore[no-untyped-def]
+        from app.schemas.analysis_runs import DashboardPayloadResponse
+        from app.services.feedback_synthesis import SynthesisResult
+
+        payload = DashboardPayloadResponse.model_validate(
+            {
+                "analysisContext": {
+                    "analysisRunId": request.analysis_run_id,
+                    "productName": request.product_name,
+                    "productDescription": request.product_description,
+                    "goal": request.analysis_goal,
+                    "processingMethod": "LLM OpenAI Feedback Synthesis" if self.synthesis_method == "llm_openai" else "Deterministic Feedback Synthesis Fallback",
+                    "sourceCount": len(request.sources),
+                    "feedbackItemCount": len(request.feedback_items),
+                    "lastRunAt": request.completed_at,
+                },
+                "sourceMix": [
+                    {
+                        "sourceId": "source_789",
+                        "sourceType": request.sources[0]["source_type"],
+                        "label": request.sources[0]["source_label"],
+                        "count": len(request.feedback_items),
+                        "unit": "items",
+                        "percent": 100,
+                    }
+                ],
+                "kpis": [{"label": "Feedback items analyzed", "value": str(len(request.feedback_items))}],
+                "executiveSummary": self.executive_summary,
+                "sentimentBreakdown": {
+                    "overall": [],
+                    "bySource": [],
+                },
+                "classificationSummary": [],
+                "topThemes": [],
+                "painPoints": [],
+                "featureRequests": [],
+                "roadmapRecommendations": [],
+                "representativeQuotes": [],
+                "modelSignals": [
+                    {"label": "Synthesis method", "value": self.synthesis_method}
+                ],
+            }
+        )
+        return SynthesisResult(
+            dashboard_payload=payload,
+            metadata={
+                "synthesis_method": self.synthesis_method,
+                "llm_model": "gpt-5.4-mini" if self.synthesis_method == "llm_openai" else None,
+            },
+        )
+
+
 class FakeAnalysisSupabaseClient:
     def __init__(
         self,
@@ -150,6 +212,11 @@ class FakeAnalysisSupabaseClient:
         if table == "dashboard_summaries":
             if self.fail_dashboard_insert:
                 raise SupabaseInsertError("Supabase insert failed for table 'dashboard_summaries'.")
+            self.dashboard_summary = {
+                "id": "summary_123",
+                "analysis_run_id": payload["analysis_run_id"],
+                "summary_payload": payload["summary_payload"],
+            }
             return {
                 "id": "summary_123",
                 "analysis_run_id": payload["analysis_run_id"],
@@ -171,6 +238,25 @@ class FakeAnalysisSupabaseClient:
                 "created_at": datetime(2026, 6, 18, 9, message_number, tzinfo=UTC).isoformat(),
             }
         raise AssertionError(f"Unexpected insert table {table}")
+
+    def update_row(
+        self,
+        table: str,
+        *,
+        payload: dict[str, object],
+        filters: dict[str, str],
+    ) -> dict[str, object]:
+        self.calls.append((f"{table}:update", {"payload": payload, "filters": filters}))
+        return {
+            "id": filters["id"],
+            "feedback_set_id": "set_456",
+            "status": "completed",
+            "current_step": "generate_dashboard",
+            "started_at": datetime(2026, 6, 18, 9, 0, tzinfo=UTC).isoformat(),
+            "completed_at": datetime(2026, 6, 18, 9, 0, tzinfo=UTC).isoformat(),
+            "error_message": None,
+            "metadata_json": payload["metadata_json"],
+        }
 
     @staticmethod
     def _feedback_item_text(index: int) -> str:
@@ -363,8 +449,28 @@ def test_create_placeholder_run_persists_analysis_run_and_dashboard_summary() ->
         "data_sources:fetch_rows",
         "feedback_items:fetch_rows",
         "analysis_runs",
+        "analysis_runs:update",
         "dashboard_summaries",
     ]
+
+
+def test_create_placeholder_run_uses_llm_synthesis_when_available() -> None:
+    client = FakeAnalysisSupabaseClient()
+    service = AnalysisRunService(
+        client,  # type: ignore[arg-type]
+        synthesis_service=FakeSynthesisService(
+            synthesis_method="llm_openai",
+            executive_summary="LLM-generated synthesis summary.",
+        ),
+    )
+
+    response = service.create_placeholder_run("set_456", SynthesizeFeedbackSetRequest())
+    bundle = service.get_analysis_run_bundle(response.analysis_run.id)
+
+    assert response.analysis_run.metadata["synthesis_method"] == "llm_openai"
+    assert response.analysis_run.metadata["llm_model"] == "gpt-5.4-mini"
+    assert bundle.dashboard is not None
+    assert bundle.dashboard.executive_summary == "LLM-generated synthesis summary."
 
 
 def test_create_placeholder_run_uses_selected_fitness_product_context() -> None:

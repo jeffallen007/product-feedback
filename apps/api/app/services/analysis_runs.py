@@ -13,6 +13,12 @@ from app.errors import (
     FeedbackSetNotFoundError,
     SupabaseInsertError,
 )
+from app.services.feedback_synthesis import (
+    FeedbackSynthesisService,
+    SynthesisRequest,
+    infer_generic_feedback_attributes,
+    iso_now,
+)
 from app.schemas.analysis_runs import (
     AnalysisRunBundleResponse,
     AnalysisRunResponse,
@@ -36,8 +42,16 @@ from app.schemas.feedback_sets import (
 
 
 class AnalysisRunService:
-    def __init__(self, supabase: SupabaseRestClient) -> None:
+    def __init__(
+        self,
+        supabase: SupabaseRestClient,
+        *,
+        synthesis_service: FeedbackSynthesisService | None = None,
+    ) -> None:
         self._supabase = supabase
+        self._synthesis_service = synthesis_service or FeedbackSynthesisService(
+            llm_client=None,
+        )
 
     def create_placeholder_run(
         self,
@@ -64,11 +78,12 @@ class AnalysisRunService:
 
         analysis_goal = request.analysis_goal or str(feedback_set["analysis_goal"])
         total_feedback_count = len(feedback_items) if feedback_items else int(feedback_set["total_feedback_count"])
+        started_at = iso_now()
         metadata = {
             "analysis_goal": analysis_goal,
             "total_feedback_count": total_feedback_count,
             "source_count": len(sources),
-            "placeholder_message": "Placeholder dashboard summary generated from demo fixtures.",
+            "placeholder_message": "Dashboard summary generated from persisted feedback.",
         }
         analysis_run = self._supabase.insert_row(
             "analysis_runs",
@@ -76,27 +91,52 @@ class AnalysisRunService:
                 "feedback_set_id": feedback_set_id,
                 "status": "completed",
                 "current_step": "generate_dashboard",
-                "started_at": "2026-06-18T00:00:00+00:00",
-                "completed_at": "2026-06-18T00:00:00+00:00",
+                "started_at": started_at,
+                "completed_at": started_at,
                 "error_message": None,
                 "metadata_json": metadata,
             },
         )
-        dashboard_payload = self._build_placeholder_dashboard(
-            analysis_run=analysis_run,
-            analysis_target=analysis_target,
-            feedback_set=feedback_set,
-            sources=sources,
-            feedback_items=feedback_items,
-            analysis_goal=analysis_goal,
+        synthesis_result = self._synthesis_service.synthesize(
+            SynthesisRequest(
+                analysis_run_id=str(analysis_run["id"]),
+                analysis_goal=analysis_goal,
+                product_name=str(analysis_target["name"]),
+                product_description=str(analysis_target["description"]),
+                completed_at=str(analysis_run["completed_at"]),
+                dataset_id=self._resolve_demo_product_id(
+                    analysis_target=analysis_target,
+                    sources=sources,
+                    feedback_items=feedback_items,
+                ),
+                sources=sources,
+                feedback_items=[
+                    self._normalize_feedback_item(
+                        self._resolve_demo_product_id(
+                            analysis_target=analysis_target,
+                            sources=sources,
+                            feedback_items=feedback_items,
+                        ),
+                        item,
+                    )
+                    for item in feedback_items
+                ],
+            )
+        )
+        metadata.update(synthesis_result.metadata)
+        self._supabase.update_row(
+            "analysis_runs",
+            payload={"metadata_json": metadata},
+            filters={"id": str(analysis_run["id"])},
         )
         self._supabase.insert_row(
             "dashboard_summaries",
             {
                 "analysis_run_id": analysis_run["id"],
-                "summary_payload": dashboard_payload.model_dump(by_alias=True),
+                "summary_payload": synthesis_result.dashboard_payload.model_dump(by_alias=True),
             },
         )
+        analysis_run["metadata_json"] = metadata
 
         return SynthesizeFeedbackSetResponse(
             analysisRun=self._to_analysis_run_response(analysis_run),
@@ -663,7 +703,7 @@ class AnalysisRunService:
         dataset_id: str | None,
         item: dict[str, object],
     ) -> dict[str, object]:
-        inferred = infer_demo_feedback_attributes(dataset_id, item)
+        inferred = infer_demo_feedback_attributes(dataset_id, item) if dataset_id is not None else infer_generic_feedback_attributes(item)
         normalized = dict(item)
         normalized.update(
             {

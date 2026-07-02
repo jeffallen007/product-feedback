@@ -475,6 +475,7 @@ def build_demo_dashboard_payload(
     product_description: str,
     sources: list[dict[str, Any]],
     feedback_items: list[dict[str, Any]],
+    processing_method: str = "Deterministic Demo Synthesis",
 ) -> dict[str, Any]:
     profile = get_demo_profile(dataset_id) or DEMO_DATASET_PROFILES["productivity_tool"]
     normalized_items = [_normalize_feedback_item(profile.dataset_id, item) for item in feedback_items]
@@ -512,7 +513,7 @@ def build_demo_dashboard_payload(
             "productName": product_name,
             "productDescription": product_description,
             "goal": analysis_goal,
-            "processingMethod": "Deterministic Demo Synthesis",
+            "processingMethod": processing_method,
             "sourceCount": len(sources),
             "feedbackItemCount": total_feedback_count,
             "lastRunAt": completed_at,

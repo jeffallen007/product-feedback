@@ -26,6 +26,8 @@ class Settings:
     supabase_service_role_key: str | None = field(
         default_factory=lambda: os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
     )
+    openai_api_key: str | None = field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
+    openai_model: str = field(default_factory=lambda: os.getenv("OPENAI_MODEL", "gpt-5.4-mini"))
     frontend_origins: list[str] = field(default_factory=_parse_frontend_origins)
 
 
