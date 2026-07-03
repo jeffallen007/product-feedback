@@ -200,6 +200,78 @@ The backend runs locally at:
 http://127.0.0.1:8000
 ```
 
+### MCP Server Setup
+
+The MCP server is a thin integration layer over the existing FastAPI backend. It does not duplicate ingestion, synthesis, dashboard, or chat business logic.
+
+Install MCP server dependencies in a Python environment:
+
+```bash
+python3 -m pip install -r apps/mcp/requirements.txt
+```
+
+Set the backend URL when using anything other than the local default:
+
+```bash
+export PRODUCT_FEEDBACK_BACKEND_BASE_URL=http://localhost:8000
+```
+
+Run the MCP server from the repo root:
+
+```bash
+python -m apps.mcp.server
+```
+
+The MCP server uses Streamable HTTP at `/mcp`. It binds to `0.0.0.0` and reads `PORT` from the environment, defaulting to `8001` for local runs.
+
+Available MCP tools:
+
+* `create_feedback_set`
+* `add_pasted_feedback`
+* `run_synthesis`
+* `get_analysis_bundle`
+* `ask_analysis_question`
+
+Example agent workflow:
+
+1. Call `create_feedback_set` with product name, description, and analysis goal.
+2. Call `add_pasted_feedback` with the returned `feedback_set_id` and newline-separated feedback.
+3. Call `run_synthesis` with the `feedback_set_id`.
+4. Call `get_analysis_bundle` with the returned `analysis_run_id`.
+5. Call `ask_analysis_question` with the `analysis_run_id` and a follow-up question.
+
+### Railway MCP Deployment
+
+Create a separate Railway web service for the MCP server.
+
+Recommended Railway service root:
+
+```text
+/
+```
+
+Keep the service root at the repository root because the MCP modules import from `apps.mcp`.
+
+Install command:
+
+```bash
+python -m pip install -r apps/mcp/requirements.txt
+```
+
+Start command:
+
+```bash
+python -m apps.mcp.server
+```
+
+Required environment variable:
+
+```bash
+PRODUCT_FEEDBACK_BACKEND_BASE_URL=https://your-fastapi-backend.example.com
+```
+
+Railway provides the `PORT` environment variable automatically. The MCP server reads it and exposes Streamable HTTP on `/mcp`.
+
 ## Supabase Setup
 
 The backend demo path requires a Supabase project. The FastAPI backend persists:

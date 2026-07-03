@@ -30,6 +30,7 @@ class ChatMessageResponse(CamelModel):
 
 class AskAnalysisQuestionResponse(CamelModel):
     answer: str
+    chat_method: str = "deterministic_fallback"
     scope_used: str
     evidence: list[ChatEvidenceItemResponse]
     follow_up_suggestions: list[str]

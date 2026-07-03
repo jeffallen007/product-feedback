@@ -245,12 +245,14 @@ class AnalysisRunService:
                 feedback_items=feedback_items,
                 dashboard_payload=dashboard_payload,
             )
+            chat_method = "deterministic_fallback"
         else:
             answer_payload = {
                 "answer": chat_result.answer,
                 "evidence": chat_result.evidence,
                 "follow_up_suggestions": chat_result.follow_up_suggestions,
             }
+            chat_method = str(chat_result.metadata.get("chat_method") or "llm_openai")
 
         assistant_message = self._supabase.insert_row(
             "chat_messages",
@@ -267,6 +269,7 @@ class AnalysisRunService:
 
         return AskAnalysisQuestionResponse(
             answer=str(answer_payload["answer"]),
+            chatMethod=chat_method,
             scopeUsed=scope,
             evidence=answer_payload["evidence"],
             followUpSuggestions=answer_payload["follow_up_suggestions"],

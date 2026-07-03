@@ -857,6 +857,7 @@ def test_ask_analysis_question_uses_llm_chat_when_available() -> None:
     assert chat_inserts[0][1]["role"] == "user"
     assert chat_inserts[1][1]["role"] == "assistant"
     assert response.answer.startswith("Based on the feedback")
+    assert response.chat_method == "llm_openai"
     assert response.evidence[0].feedback_item_id == "item_1"
     assert response.follow_up_suggestions == [
         "Which notification controls should ship first?",
@@ -883,6 +884,7 @@ def test_ask_analysis_question_without_openai_key_falls_back_to_deterministic_ch
     )
 
     assert response.answer.startswith("Notification overload is one of the strongest signals in this run")
+    assert response.chat_method == "deterministic_fallback"
     assert len(response.evidence) == 3
 
 
@@ -900,6 +902,7 @@ def test_ask_analysis_question_falls_back_when_openai_chat_errors() -> None:
     )
 
     assert response.answer.startswith("Prioritize Fix setup friction first")
+    assert response.chat_method == "deterministic_fallback"
     assert len(response.evidence) == 2
 
 
