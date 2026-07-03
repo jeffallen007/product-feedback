@@ -4,11 +4,14 @@ AI Product Feedback Synthesizer is a portfolio demo application that turns fragm
 
 The app lets a user create a feedback set, synthesize product insights, review a dashboard, and ask follow-up questions through a chat interface. It is designed to demonstrate product thinking, full-stack execution, backend persistence, and applied AI product architecture.
 
+The homepage also includes a secondary `/mcp-demo` route for technical reviewers. That page runs the same workflow through MCP-backed tools via a server-side Next.js route instead of the normal web UI.
+
 ## Live Demo
 
 * Frontend: deployed on Vercel
 * Backend: deployed on Railway
 * Backend health check: `https://product-feedback-production.up.railway.app/health`
+* MCP endpoint: `https://product-feedback-mcp-production.up.railway.app/mcp`
 
 ## What It Does
 
@@ -162,7 +165,10 @@ Frontend env vars:
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_USE_BACKEND_DEMO=true
+MCP_SERVER_URL=https://product-feedback-mcp-production.up.railway.app/mcp
 ```
+
+`MCP_SERVER_URL` is server-side only. The `/mcp-demo` page calls `POST /api/mcp-demo/run`, and that route connects to the deployed MCP service over Streamable HTTP.
 
 ### Backend Setup
 

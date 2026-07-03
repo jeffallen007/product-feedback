@@ -1,8 +1,9 @@
 "use client"
 
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Play, Layers } from "lucide-react"
+import { ArrowRight, Bot, Play, Layers } from "lucide-react"
 import { CapabilityPreview } from "@/components/capability-preview"
 import { ArchitectureStrip } from "@/components/architecture-strip"
 
@@ -89,6 +90,33 @@ export function HeroEntry({
       {/* Capabilities */}
       <div className="mx-auto mt-14 max-w-3xl">
         <CapabilityPreview />
+      </div>
+
+      <div className="mx-auto mt-8 w-full max-w-3xl rounded-xl border border-border bg-card px-6 py-6">
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Bot className="size-4 text-primary" aria-hidden="true" />
+              Built for Human Users and AI Agents
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              The standard demo lets product teams synthesize feedback through a
+              web UI. The MCP demo shows the same workflow exposed as
+              agent-callable tools, so an AI agent can create a feedback set,
+              ingest raw feedback, run synthesis, retrieve the analysis bundle,
+              and ask grounded follow-up questions without using the web app.
+            </p>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              For technical reviewers: this demo calls the deployed MCP service
+              over Streamable HTTP.
+            </p>
+          </div>
+
+          <Button variant="outline" size="lg" render={<Link href="/mcp-demo" />}>
+            View MCP Agent Demo
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
       </div>
     </div>
   )
