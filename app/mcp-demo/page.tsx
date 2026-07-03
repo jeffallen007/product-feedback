@@ -1,14 +1,17 @@
 "use client"
 
 import Link from "next/link"
+import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
   Bot,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   LoaderCircle,
   Server,
+  Sparkles,
   TriangleAlert,
 } from "lucide-react"
 
@@ -24,21 +27,119 @@ import {
 import { cn } from "@/lib/utils"
 import {
   MCP_DEMO_PRODUCT,
-  MCP_DEMO_STEP_LABELS,
+  MCP_DEMO_STEP_IDS,
   type McpDemoErrorResponse,
   type McpDemoResponse,
   type McpDemoStep,
 } from "@/lib/types/mcp-demo"
 
-const WORKFLOW_LABELS: Record<string, string> = {
-  create_feedback_set: "1. Agent creates a feedback set",
-  add_pasted_feedback: "2. Agent ingests pasted feedback",
-  run_synthesis: "3. Agent runs synthesis",
-  get_analysis_bundle: "4. Agent retrieves the analysis bundle",
-  ask_analysis_question: "5. Agent asks a grounded follow-up question",
+type RunState = "idle" | "running" | "completed" | "failed"
+
+const STEP_COPY: Record<
+  (typeof MCP_DEMO_STEP_IDS)[number],
+  Pick<McpDemoStep, "label" | "toolName" | "summary" | "usedNextFor"> & {
+    inputPreview?: Record<string, unknown>
+    outputPreview?: Record<string, unknown>
+    technicalNote?: string
+    llmInvolved?: boolean
+  }
+> = {
+  create_feedback_set: {
+    label: "Agent creates a feedback set",
+    toolName: "create_feedback_set",
+    summary: "Prepare the product target and workflow metadata.",
+    inputPreview: {
+      product_name: MCP_DEMO_PRODUCT.name,
+      product_description: MCP_DEMO_PRODUCT.description,
+      analysis_goal: MCP_DEMO_PRODUCT.analysisGoal,
+    },
+    outputPreview: {
+      feedback_set_id: "...",
+      status: "created",
+    },
+    usedNextFor:
+      "The returned feedback_set_id is passed into add_pasted_feedback.",
+  },
+  add_pasted_feedback: {
+    label: "Agent ingests pasted feedback",
+    toolName: "add_pasted_feedback",
+    summary: "Send the raw feedback block through the deployed MCP tool.",
+    inputPreview: {
+      feedback_set_id: "...",
+      text: "Eight raw feedback lines...",
+    },
+    outputPreview: {
+      items_created: 8,
+      status: "ingested",
+    },
+    usedNextFor:
+      "The same feedback_set_id is passed into run_synthesis.",
+  },
+  run_synthesis: {
+    label: "Agent runs synthesis",
+    toolName: "run_synthesis",
+    summary: "Trigger analysis on the MCP service.",
+    inputPreview: {
+      feedback_set_id: "...",
+    },
+    outputPreview: {
+      analysis_run_id: "...",
+      status: "completed",
+      synthesis_method: "llm_openai or deterministic_fallback",
+    },
+    usedNextFor:
+      "The returned analysis_run_id becomes the handle for retrieving the analysis bundle and asking follow-up questions.",
+    technicalNote:
+      "This is the main synthesis step. The backend may call OpenAI here when configured, with deterministic fallback otherwise.",
+    llmInvolved: true,
+  },
+  get_analysis_bundle: {
+    label: "Agent retrieves the analysis bundle",
+    toolName: "get_analysis_bundle",
+    summary: "Retrieve the dashboard bundle returned by synthesis.",
+    inputPreview: {
+      analysis_run_id: "...",
+    },
+    outputPreview: {
+      executive_summary: "...",
+      top_themes: ["...", "..."],
+      representative_quotes: ["...", "..."],
+    },
+    usedNextFor:
+      "The agent uses the structured bundle as context for product reasoning and final display.",
+  },
+  ask_analysis_question: {
+    label: "Agent asks a grounded follow-up question",
+    toolName: "ask_analysis_question",
+    summary: "Ask a grounded product question against the completed run.",
+    inputPreview: {
+      analysis_run_id: "...",
+      question: MCP_DEMO_PRODUCT.question,
+    },
+    outputPreview: {
+      answer: "...",
+      chat_method: "llm_openai or deterministic_fallback",
+      evidence: ["...", "..."],
+    },
+    usedNextFor:
+      "The final recommendation is rendered from the answer and supporting evidence.",
+    technicalNote:
+      "This is the grounded follow-up step. The backend may call OpenAI here when configured, with deterministic fallback otherwise.",
+    llmInvolved: true,
+  },
 }
 
-type RunState = "idle" | "running" | "completed" | "failed"
+const ARCHITECTURE_FLOW = [
+  "Browser page",
+  "Next.js server route",
+  "MCP TypeScript client",
+  "Railway MCP server",
+  "MCP tool wrapper",
+  "FastAPI backend",
+  "Supabase and/or OpenAI",
+  "Structured MCP response",
+  "Page render",
+]
 
 export default function McpDemoPage() {
   const [runState, setRunState] = useState<RunState>("idle")
@@ -53,7 +154,7 @@ export default function McpDemoPage() {
 
     const interval = window.setInterval(() => {
       setPreviewIndex((current) =>
-        current < MCP_DEMO_STEP_LABELS.length - 1 ? current + 1 : current,
+        current < MCP_DEMO_STEP_IDS.length - 1 ? current + 1 : current,
       )
     }, 900)
 
@@ -65,8 +166,10 @@ export default function McpDemoPage() {
       return data.steps
     }
 
-    return MCP_DEMO_STEP_LABELS.map<McpDemoStep>((label, index) => ({
-      label,
+    return MCP_DEMO_STEP_IDS.map<McpDemoStep>((id, index) => ({
+      id,
+      label: STEP_COPY[id].label,
+      toolName: STEP_COPY[id].toolName,
       status:
         runState === "running"
           ? index < previewIndex
@@ -81,16 +184,12 @@ export default function McpDemoPage() {
                 ? "completed"
                 : "pending"
             : "pending",
-      summary:
-        label === "create_feedback_set"
-          ? "Prepare the product target and workflow metadata."
-          : label === "add_pasted_feedback"
-            ? "Send the raw feedback block through the deployed MCP tool."
-            : label === "run_synthesis"
-              ? "Trigger analysis on the MCP service."
-              : label === "get_analysis_bundle"
-                ? "Retrieve the dashboard bundle returned by synthesis."
-                : "Ask a grounded product question against the completed run.",
+      summary: STEP_COPY[id].summary,
+      inputPreview: STEP_COPY[id].inputPreview,
+      outputPreview: STEP_COPY[id].outputPreview,
+      usedNextFor: STEP_COPY[id].usedNextFor,
+      technicalNote: STEP_COPY[id].technicalNote,
+      llmInvolved: STEP_COPY[id].llmInvolved,
     }))
   }, [data, previewIndex, runState])
 
@@ -124,7 +223,7 @@ export default function McpDemoPage() {
 
       setData(payload)
       setRunState("completed")
-      setPreviewIndex(MCP_DEMO_STEP_LABELS.length - 1)
+      setPreviewIndex(MCP_DEMO_STEP_IDS.length - 1)
     } catch (caughtError) {
       const message =
         caughtError instanceof Error
@@ -140,7 +239,7 @@ export default function McpDemoPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-10 sm:px-8 sm:py-12">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-10 sm:px-8 sm:py-12">
       <div className="flex items-center justify-between gap-4">
         <Button variant="ghost" size="sm" render={<Link href="/" />}>
           <ArrowLeft className="size-4" />
@@ -154,19 +253,19 @@ export default function McpDemoPage() {
         </Badge>
       </div>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <div>
+      <section className="mt-8 grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
+        <div className="space-y-6">
           <div className="max-w-2xl">
             <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
               MCP-Powered Product Feedback Agent
             </h1>
-            <p className="mt-4 max-w-xl text-base leading-relaxed text-muted-foreground">
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
               This demo shows an agent calling the Product Feedback Synthesizer
               through MCP tools instead of the web UI.
             </p>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               size="lg"
               onClick={handleRun}
@@ -185,8 +284,43 @@ export default function McpDemoPage() {
             </div>
           </div>
 
+          <Card className="border border-primary/15 bg-card">
+            <CardHeader>
+              <CardTitle>How the request flows</CardTitle>
+              <CardDescription>
+                This page does not call the product backend directly. It uses a
+                Next.js server route running an MCP client, which calls the
+                deployed Railway MCP server. The MCP server then invokes product
+                tools that call the existing FastAPI backend.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {ARCHITECTURE_FLOW.map((item, index) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <span className="rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground">
+                      {item}
+                    </span>
+                    {index < ARCHITECTURE_FLOW.length - 1 ? (
+                      <ChevronRight className="size-3.5 text-muted-foreground" />
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
+                Orchestration steps are MCP tool calls. The LLM-backed parts are
+                primarily <code className="font-mono text-xs">run_synthesis</code>{" "}
+                and{" "}
+                <code className="font-mono text-xs">
+                  ask_analysis_question
+                </code>
+                .
+              </div>
+            </CardContent>
+          </Card>
+
           {error ? (
-            <Card className="mt-6 border border-destructive/30 ring-destructive/10">
+            <Card className="border border-destructive/30 ring-destructive/10">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-destructive">
                   <TriangleAlert className="size-4" />
@@ -198,17 +332,43 @@ export default function McpDemoPage() {
           ) : null}
 
           {data ? (
-            <Card className="mt-6 border border-primary/20 bg-card">
+            <Card className="border border-primary/20 bg-card">
               <CardHeader>
                 <CardTitle>Grounded product recommendation</CardTitle>
                 <CardDescription>
-                  Analysis run ID:{" "}
-                  <span className="font-mono text-xs text-foreground">
-                    {data.result.analysisRunId}
-                  </span>
+                  Final answer rendered from MCP outputs returned by the server
+                  route.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className="rounded-lg border border-border bg-muted/30 p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Produced from MCP outputs
+                  </p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <MetadataPill
+                      label="analysis_run_id"
+                      value={data.result.analysisRunId}
+                    />
+                    <MetadataPill
+                      label="synthesis method"
+                      value={data.result.synthesisMethod ?? "unknown"}
+                    />
+                    <MetadataPill
+                      label="chat method"
+                      value={data.result.chatMethod ?? "unknown"}
+                    />
+                    <MetadataPill
+                      label="evidence items"
+                      value={String(data.result.evidence.length)}
+                    />
+                    <MetadataPill
+                      label="top themes"
+                      value={String(data.result.topThemes.length)}
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <p className="text-sm font-medium text-foreground">
                     Executive summary
@@ -325,7 +485,8 @@ export default function McpDemoPage() {
             <CardHeader>
               <CardTitle>Agent workflow</CardTitle>
               <CardDescription>
-                Visible MCP tool calls and outputs from the deployed service.
+                Each card shows the MCP tool call, the structured arguments, the
+                structured response, and how the output feeds the next step.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -334,62 +495,175 @@ export default function McpDemoPage() {
                   0. Agent receives raw product feedback
                 </p>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  Eight lines of raw product feedback are sent to the server
-                  route, which then uses MCP to execute the workflow.
+                  Eight lines of raw product feedback are sent to the Next.js
+                  server route, which then uses MCP to execute the workflow.
                 </p>
               </div>
 
-              {visibleSteps.map((step) => (
-                <div
-                  key={step.label}
-                  className={cn(
-                    "rounded-lg border px-3 py-3",
-                    step.status === "completed" &&
-                      "border-primary/25 bg-primary/5",
-                    step.status === "running" &&
-                      "border-primary/35 bg-accent/60",
-                    step.status === "failed" &&
-                      "border-destructive/30 bg-destructive/5",
-                    step.status === "pending" && "border-border bg-card",
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="mt-0.5">
-                      {step.status === "completed" ? (
-                        <CheckCircle2 className="size-4 text-success" />
-                      ) : step.status === "running" ? (
-                        <LoaderCircle className="size-4 animate-spin text-primary" />
-                      ) : step.status === "failed" ? (
-                        <TriangleAlert className="size-4 text-destructive" />
-                      ) : (
-                        <ChevronRight className="size-4 text-muted-foreground" />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground">
-                        {WORKFLOW_LABELS[step.label]}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {step.summary}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+              {visibleSteps.map((step, index) => (
+                <WorkflowStepCard key={step.id} step={step} index={index + 1} />
               ))}
-
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
-                <p className="text-sm font-medium text-foreground">
-                  6. Agent returns grounded product recommendation
-                </p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  The page highlights the final recommendation, top themes, and
-                  evidence returned by the MCP-backed workflow.
-                </p>
-              </div>
             </CardContent>
           </Card>
         </div>
       </section>
     </main>
   )
+}
+
+function WorkflowStepCard({
+  step,
+  index,
+}: {
+  step: McpDemoStep
+  index: number
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border px-4 py-4",
+        step.status === "completed" && "border-primary/25 bg-primary/5",
+        step.status === "running" && "border-primary/35 bg-accent/60",
+        step.status === "failed" && "border-destructive/30 bg-destructive/5",
+        step.status === "pending" && "border-border bg-card",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5">
+          {step.status === "completed" ? (
+            <CheckCircle2 className="size-4 text-success" />
+          ) : step.status === "running" ? (
+            <LoaderCircle className="size-4 animate-spin text-primary" />
+          ) : step.status === "failed" ? (
+            <TriangleAlert className="size-4 text-destructive" />
+          ) : (
+            <ChevronRight className="size-4 text-muted-foreground" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium text-foreground">
+              {index}. {step.label}
+            </p>
+            {step.llmInvolved ? (
+              <Badge
+                variant="secondary"
+                className="gap-1 border border-primary/20 bg-accent text-accent-foreground"
+              >
+                <Sparkles className="size-3" />
+                LLM-capable step
+              </Badge>
+            ) : null}
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground">{step.summary}</p>
+
+          <div className="grid gap-3">
+            <DetailBlock
+              label="MCP tool"
+              content={
+                <code className="font-mono text-xs text-foreground">
+                  {step.toolName}
+                </code>
+              }
+            />
+            <DetailBlock
+              label="Agent sends"
+              content={<JsonPreview value={step.inputPreview} />}
+            />
+            <DetailBlock
+              label="MCP returns"
+              content={<JsonPreview value={step.outputPreview} />}
+            />
+            <DetailBlock
+              label="Used next for"
+              content={
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {step.usedNextFor ?? "Waiting for workflow completion."}
+                </p>
+              }
+            />
+          </div>
+
+          {step.technicalNote ? (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+              {step.technicalNote}
+            </div>
+          ) : null}
+
+          {step.status === "completed" && step.inputPreview ? (
+            <JsonDisclosure label="View input JSON" value={step.inputPreview} />
+          ) : null}
+          {step.status === "completed" && step.output ? (
+            <JsonDisclosure label="View response JSON" value={step.output} />
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DetailBlock({
+  label,
+  content,
+}: {
+  label: string
+  content: ReactNode
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card/70 px-3 py-3">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <div className="mt-2">{content}</div>
+    </div>
+  )
+}
+
+function JsonPreview({ value }: { value: Record<string, unknown> | undefined }) {
+  return (
+    <pre className="overflow-x-auto rounded-lg bg-muted/40 p-3 font-mono text-xs leading-5 text-foreground">
+      {formatJson(value)}
+    </pre>
+  )
+}
+
+function JsonDisclosure({
+  label,
+  value,
+}: {
+  label: string
+  value: Record<string, unknown>
+}) {
+  return (
+    <details className="group rounded-lg border border-border bg-card">
+      <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium text-foreground">
+        {label}
+        <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="border-t border-border px-3 py-3">
+        <pre className="overflow-x-auto rounded-lg bg-muted/40 p-3 font-mono text-xs leading-5 text-foreground">
+          {formatJson(value)}
+        </pre>
+      </div>
+    </details>
+  )
+}
+
+function MetadataPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 break-all font-mono text-xs text-foreground">{value}</p>
+    </div>
+  )
+}
+
+function formatJson(value: Record<string, unknown> | undefined): string {
+  if (!value) {
+    return "{\n  \"status\": \"pending\"\n}"
+  }
+
+  return JSON.stringify(value, null, 2)
 }

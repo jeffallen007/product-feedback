@@ -17,7 +17,7 @@ The setup checklist was unclear.`,
   question: "What should we prioritize next and why?",
 } as const
 
-export const MCP_DEMO_STEP_LABELS = [
+export const MCP_DEMO_STEP_IDS = [
   "create_feedback_set",
   "add_pasted_feedback",
   "run_synthesis",
@@ -25,7 +25,7 @@ export const MCP_DEMO_STEP_LABELS = [
   "ask_analysis_question",
 ] as const
 
-export type McpDemoStepLabel = (typeof MCP_DEMO_STEP_LABELS)[number]
+export type McpDemoStepId = (typeof MCP_DEMO_STEP_IDS)[number]
 
 export type McpDemoStepStatus =
   | "pending"
@@ -41,10 +41,17 @@ export interface McpDemoEvidenceItem {
 }
 
 export interface McpDemoStep {
-  label: McpDemoStepLabel
+  id: McpDemoStepId
+  label: string
+  toolName: McpDemoStepId
   status: McpDemoStepStatus
   summary: string
+  inputPreview?: Record<string, unknown>
+  outputPreview?: Record<string, unknown>
   output?: Record<string, unknown>
+  usedNextFor?: string
+  technicalNote?: string
+  llmInvolved?: boolean
 }
 
 export interface McpDemoResult {
@@ -53,6 +60,8 @@ export interface McpDemoResult {
   topThemes: Record<string, unknown>[]
   recommendation: string
   evidence: McpDemoEvidenceItem[]
+  synthesisMethod?: string
+  chatMethod?: string
 }
 
 export interface McpDemoResponse {

@@ -67,23 +67,34 @@ export async function runMcpDemoWorkflow(): Promise<McpDemoResponse> {
   try {
     await client.connect(transport)
 
+    const createInput = {
+      product_name: MCP_DEMO_PRODUCT.name,
+      product_description: MCP_DEMO_PRODUCT.description,
+      analysis_goal: MCP_DEMO_PRODUCT.analysisGoal,
+    }
     const created = await callTool<CreateFeedbackSetOutput>(
       client,
       "create_feedback_set",
-      {
-        product_name: MCP_DEMO_PRODUCT.name,
-        product_description: MCP_DEMO_PRODUCT.description,
-        analysis_goal: MCP_DEMO_PRODUCT.analysisGoal,
-      },
+      createInput,
     )
     steps.push({
-      label: "create_feedback_set",
+      id: "create_feedback_set",
+      label: "Agent creates a feedback set",
+      toolName: "create_feedback_set",
       status: "completed",
       summary: `Created feedback set ${created.feedback_set_id}.`,
+      inputPreview: createInput,
+      outputPreview: created,
       output: created,
+      usedNextFor:
+        "The returned feedback_set_id is passed into add_pasted_feedback.",
     })
 
-    const ingested = await callTool<AddPastedFeedbackOutput>(
+    const ingestInput = {
+      feedback_set_id: created.feedback_set_id,
+      text: "Eight raw feedback lines...",
+    }
+    const ingestOutput = await callTool<AddPastedFeedbackOutput>(
       client,
       "add_pasted_feedback",
       {
@@ -92,49 +103,110 @@ export async function runMcpDemoWorkflow(): Promise<McpDemoResponse> {
       },
     )
     steps.push({
-      label: "add_pasted_feedback",
+      id: "add_pasted_feedback",
+      label: "Agent ingests pasted feedback",
+      toolName: "add_pasted_feedback",
       status: "completed",
-      summary: `Ingested ${ingested.items_created} pasted feedback items.`,
-      output: ingested,
+      summary: `Ingested ${ingestOutput.items_created} pasted feedback items.`,
+      inputPreview: ingestInput,
+      outputPreview: {
+        feedback_set_id: ingestOutput.feedback_set_id,
+        items_created: ingestOutput.items_created,
+        status: ingestOutput.status,
+      },
+      output: ingestOutput,
+      usedNextFor:
+        "The same feedback_set_id is passed into run_synthesis.",
     })
 
-    const synthesis = await callTool<RunSynthesisOutput>(client, "run_synthesis", {
+    const synthesisInput = {
       feedback_set_id: created.feedback_set_id,
-    })
+    }
+    const synthesis = await callTool<RunSynthesisOutput>(
+      client,
+      "run_synthesis",
+      synthesisInput,
+    )
     steps.push({
-      label: "run_synthesis",
+      id: "run_synthesis",
+      label: "Agent runs synthesis",
+      toolName: "run_synthesis",
       status: "completed",
       summary: `Completed synthesis run ${synthesis.analysis_run_id} via ${synthesis.synthesis_method}.`,
+      inputPreview: synthesisInput,
+      outputPreview: {
+        analysis_run_id: synthesis.analysis_run_id,
+        status: synthesis.status,
+        synthesis_method: synthesis.synthesis_method,
+      },
       output: synthesis,
+      usedNextFor:
+        "The returned analysis_run_id becomes the handle for retrieving the analysis bundle and asking follow-up questions.",
+      technicalNote:
+        "This is the main synthesis step. The backend may call OpenAI here when configured, with deterministic fallback otherwise.",
+      llmInvolved: true,
     })
 
+    const bundleInput = {
+      analysis_run_id: synthesis.analysis_run_id,
+    }
     const bundle = await callTool<AnalysisBundleOutput>(
       client,
       "get_analysis_bundle",
-      {
-        analysis_run_id: synthesis.analysis_run_id,
-      },
+      bundleInput,
     )
     steps.push({
-      label: "get_analysis_bundle",
+      id: "get_analysis_bundle",
+      label: "Agent retrieves the analysis bundle",
+      toolName: "get_analysis_bundle",
       status: "completed",
       summary: buildBundleSummary(bundle),
+      inputPreview: bundleInput,
+      outputPreview: {
+        executive_summary: truncateText(bundle.executive_summary, 180),
+        top_themes: bundle.top_themes
+          .slice(0, 2)
+          .map((theme, index) => readThemeName(theme, index)),
+        representative_quotes: bundle.representative_quotes
+          .slice(0, 2)
+          .map((quote, index) => readQuoteText(quote, index)),
+      },
       output: bundle,
+      usedNextFor:
+        "The agent uses the structured bundle as context for product reasoning and final display.",
     })
 
+    const questionInput = {
+      analysis_run_id: synthesis.analysis_run_id,
+      question: MCP_DEMO_PRODUCT.question,
+    }
     const answer = await callTool<AskAnalysisQuestionOutput>(
       client,
       "ask_analysis_question",
-      {
-        analysis_run_id: synthesis.analysis_run_id,
-        question: MCP_DEMO_PRODUCT.question,
-      },
+      questionInput,
     )
     steps.push({
-      label: "ask_analysis_question",
+      id: "ask_analysis_question",
+      label: "Agent asks a grounded follow-up question",
+      toolName: "ask_analysis_question",
       status: "completed",
-      summary: truncateSummary(answer.answer),
+      summary: truncateText(answer.answer, 160),
+      inputPreview: questionInput,
+      outputPreview: {
+        answer: truncateText(answer.answer, 220),
+        chat_method: answer.chat_method,
+        evidence: answer.evidence.slice(0, 2).map((item) => ({
+          text: typeof item.text === "string" ? truncateText(item.text, 110) : "",
+          sourceLabel:
+            typeof item.sourceLabel === "string" ? item.sourceLabel : undefined,
+        })),
+      },
       output: answer,
+      usedNextFor:
+        "The final recommendation is rendered from the answer and supporting evidence.",
+      technicalNote:
+        "This is the grounded follow-up step. The backend may call OpenAI here when configured, with deterministic fallback otherwise.",
+      llmInvolved: true,
     })
 
     return {
@@ -147,6 +219,8 @@ export async function runMcpDemoWorkflow(): Promise<McpDemoResponse> {
         topThemes: bundle.top_themes,
         recommendation: answer.answer,
         evidence: selectEvidence(answer.evidence, bundle.representative_quotes),
+        synthesisMethod: synthesis.synthesis_method,
+        chatMethod: answer.chat_method,
       },
     }
   } finally {
@@ -212,15 +286,25 @@ function buildBundleSummary(bundle: AnalysisBundleOutput): string {
   const topThemeName =
     topTheme && typeof topTheme.name === "string" ? topTheme.name : "top themes"
 
-  return `Retrieved analysis bundle for ${bundle.product_name}, including ${topThemeName}.`
+  return `Retrieved the structured analysis bundle for ${bundle.product_name}, including ${topThemeName}.`
 }
 
-function truncateSummary(value: string): string {
+function truncateText(value: string, maxLength: number): string {
   const summary = value.replace(/\s+/g, " ").trim()
-  if (summary.length <= 160) {
+  if (summary.length <= maxLength) {
     return summary
   }
-  return `${summary.slice(0, 157)}...`
+  return `${summary.slice(0, maxLength - 3)}...`
+}
+
+function readThemeName(theme: Record<string, unknown>, index: number): string {
+  return typeof theme.name === "string" ? theme.name : `Theme ${index + 1}`
+}
+
+function readQuoteText(quote: Record<string, unknown>, index: number): string {
+  return typeof quote.text === "string"
+    ? truncateText(quote.text, 110)
+    : `Quote ${index + 1}`
 }
 
 function selectEvidence(
