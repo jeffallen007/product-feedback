@@ -265,27 +265,6 @@ export default function McpDemoPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            size="lg"
-            onClick={handleRun}
-            disabled={runState === "running"}
-          >
-            {runState === "running" ? (
-              <LoaderCircle className="size-4 animate-spin" />
-            ) : (
-              <Bot className="size-4" />
-            )}
-            Run Agent Workflow
-          </Button>
-          <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-            <Server className="size-4 shrink-0 text-primary" />
-            <span className="break-words">
-              Calls the deployed MCP service over Streamable HTTP.
-            </span>
-          </div>
-        </div>
-
         {error ? (
           <Card className="border border-destructive/30 ring-destructive/10">
             <CardHeader>
@@ -331,43 +310,64 @@ export default function McpDemoPage() {
         </Card>
 
         <Card className="min-w-0 overflow-hidden">
-            <CardHeader>
-              <CardTitle>Fixed demo input</CardTitle>
-              <CardDescription>
-                The page uses one product profile and one raw feedback block so
-                the workflow is repeatable.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Product
-                </p>
-                <p className="mt-1 text-sm font-medium text-foreground">
-                  {MCP_DEMO_PRODUCT.name}
-                </p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {MCP_DEMO_PRODUCT.description}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Analysis goal
-                </p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {MCP_DEMO_PRODUCT.analysisGoal}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Follow-up question
-                </p>
-                <p className="mt-1 text-sm leading-6 text-foreground">
-                  {MCP_DEMO_PRODUCT.question}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <CardHeader>
+            <CardTitle>Fixed demo input</CardTitle>
+            <CardDescription>
+              The page uses one product profile and one raw feedback block so
+              the workflow is repeatable.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Product
+              </p>
+              <p className="mt-1 text-sm font-medium text-foreground">
+                {MCP_DEMO_PRODUCT.name}
+              </p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {MCP_DEMO_PRODUCT.description}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Analysis goal
+              </p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {MCP_DEMO_PRODUCT.analysisGoal}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Follow-up question
+              </p>
+              <p className="mt-1 text-sm leading-6 text-foreground">
+                {MCP_DEMO_PRODUCT.question}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            size="lg"
+            onClick={handleRun}
+            disabled={runState === "running"}
+          >
+            {runState === "running" ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <Bot className="size-4" />
+            )}
+            Run Agent Workflow
+          </Button>
+          <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+            <Server className="size-4 shrink-0 text-primary" />
+            <span className="break-words">
+              Calls the deployed MCP service over Streamable HTTP.
+            </span>
+          </div>
+        </div>
 
         <Card className="min-w-0 overflow-hidden">
           <CardHeader>
