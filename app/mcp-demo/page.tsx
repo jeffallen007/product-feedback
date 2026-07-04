@@ -252,203 +252,85 @@ export default function McpDemoPage() {
         </Badge>
       </div>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
-        <div className="min-w-0 space-y-6">
-          <div className="max-w-2xl">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              MCP-Powered Product Feedback Agent
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
-              This demo shows an agent calling the Product Feedback Synthesizer
-              through MCP tools instead of the web UI. The server route asks an
-              OpenAI model to choose each MCP action after discovering the tool
-              manifest.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              size="lg"
-              onClick={handleRun}
-              disabled={runState === "running"}
-            >
-              {runState === "running" ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <Bot className="size-4" />
-              )}
-              Run Agent Workflow
-            </Button>
-            <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
-              <Server className="size-4 text-primary" />
-              Calls the deployed MCP service over Streamable HTTP.
-            </div>
-          </div>
-
-          <Card className="min-w-0 overflow-hidden border border-primary/15 bg-card">
-            <CardHeader>
-              <CardTitle>How the request flows</CardTitle>
-              <CardDescription>
-                This page does not call the product backend directly. It uses a
-                Next.js server route running an MCP client, which calls the
-                deployed Railway MCP server. The MCP server then invokes product
-                tools that call the existing FastAPI backend.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex min-w-0 flex-wrap gap-2">
-                {ARCHITECTURE_FLOW.map((item, index) => (
-                  <div key={item} className="flex min-w-0 items-center gap-2">
-                    <span className="max-w-full rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground">
-                      {item}
-                    </span>
-                    {index < ARCHITECTURE_FLOW.length - 1 ? (
-                      <ChevronRight className="size-3.5 text-muted-foreground" />
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              <div className="min-w-0 rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
-                Orchestration steps are MCP tool calls. The LLM-backed parts are
-                explicit in two places: the server-side agent chooses MCP tools,
-                and the backend may also use OpenAI inside synthesis or chat
-                tools when configured.
-              </div>
-            </CardContent>
-          </Card>
-
-          {error ? (
-            <Card className="border border-destructive/30 ring-destructive/10">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-destructive">
-                  <TriangleAlert className="size-4" />
-                  MCP demo failed
-                </CardTitle>
-                <CardDescription>{error.error}</CardDescription>
-              </CardHeader>
-            </Card>
-          ) : null}
-
-          {data ? (
-            <Card className="min-w-0 overflow-hidden border border-primary/20 bg-card">
-              <CardHeader>
-                <CardTitle>Grounded product recommendation</CardTitle>
-                <CardDescription>
-                  Final answer rendered from MCP outputs returned by the server
-                  route.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="rounded-lg border border-border bg-muted/30 p-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Produced from MCP outputs
-                  </p>
-                  <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2">
-                    <MetadataPill
-                      label="agent mode"
-                      value={data.mode}
-                    />
-                    <MetadataPill
-                      label="analysis_run_id"
-                      value={data.result.analysisRunId}
-                    />
-                    <MetadataPill
-                      label="synthesis method"
-                      value={data.result.synthesisMethod ?? "unknown"}
-                    />
-                    <MetadataPill
-                      label="chat method"
-                      value={data.result.chatMethod ?? "unknown"}
-                    />
-                    <MetadataPill
-                      label="evidence items"
-                      value={String(data.result.evidence.length)}
-                    />
-                    <MetadataPill
-                      label="top themes"
-                      value={String(data.result.topThemes.length)}
-                    />
-                    <MetadataPill
-                      label="discovered tools"
-                      value={String(data.discoveredTools.length)}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    Executive summary
-                  </p>
-                  <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">
-                    {data.result.executiveSummary}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    Recommendation
-                  </p>
-                  <p className="mt-2 break-words text-sm leading-6 text-foreground">
-                    {data.result.recommendation}
-                  </p>
-                </div>
-
-                <div className="grid min-w-0 gap-4 md:grid-cols-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">
-                      Top themes
-                    </p>
-                    <div className="mt-3 min-w-0 space-y-2">
-                      {data.result.topThemes.slice(0, 3).map((theme, index) => (
-                        <div
-                          key={`${String(theme.name)}-${index}`}
-                          className="min-w-0 rounded-lg border border-border bg-muted/40 px-3 py-2"
-                        >
-                          <div className="break-words text-sm font-medium text-foreground">
-                            {typeof theme.name === "string"
-                              ? theme.name
-                              : `Theme ${index + 1}`}
-                          </div>
-                          {typeof theme.description === "string" ? (
-                            <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
-                              {theme.description}
-                            </p>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">
-                      Evidence
-                    </p>
-                    <div className="mt-3 min-w-0 space-y-2">
-                      {data.result.evidence.slice(0, 3).map((item, index) => (
-                        <div
-                          key={`${item.text}-${index}`}
-                          className="min-w-0 rounded-lg border border-border bg-muted/40 px-3 py-2"
-                        >
-                          <p className="break-words text-sm leading-5 text-foreground">
-                            "{item.text}"
-                          </p>
-                          <p className="mt-1 break-words text-xs text-muted-foreground">
-                            {[item.sourceLabel, item.themeName]
-                              .filter(Boolean)
-                              .join(" • ") || "Feedback evidence"}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : null}
+      <section className="mx-auto mt-8 flex w-full max-w-5xl flex-col gap-6">
+        <div className="max-w-3xl">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            MCP-Powered Product Feedback Agent
+          </h1>
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
+            This demo shows an agent calling the Product Feedback Synthesizer
+            through MCP tools instead of the web UI. The server route asks an
+            OpenAI model to choose each MCP action after discovering the tool
+            manifest.
+          </p>
         </div>
 
-        <div className="min-w-0 space-y-6">
-          <Card className="min-w-0 overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            size="lg"
+            onClick={handleRun}
+            disabled={runState === "running"}
+          >
+            {runState === "running" ? (
+              <LoaderCircle className="size-4 animate-spin" />
+            ) : (
+              <Bot className="size-4" />
+            )}
+            Run Agent Workflow
+          </Button>
+          <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+            <Server className="size-4 shrink-0 text-primary" />
+            <span className="break-words">
+              Calls the deployed MCP service over Streamable HTTP.
+            </span>
+          </div>
+        </div>
+
+        {error ? (
+          <Card className="border border-destructive/30 ring-destructive/10">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <TriangleAlert className="size-4" />
+                MCP demo failed
+              </CardTitle>
+              <CardDescription>{error.error}</CardDescription>
+            </CardHeader>
+          </Card>
+        ) : null}
+
+        <Card className="min-w-0 overflow-hidden border border-primary/15 bg-card">
+          <CardHeader>
+            <CardTitle>How the request flows</CardTitle>
+            <CardDescription>
+              This page does not call the product backend directly. It uses a
+              Next.js server route running an MCP client, which calls the
+              deployed Railway MCP server. The MCP server then invokes product
+              tools that call the existing FastAPI backend.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex min-w-0 flex-wrap gap-2">
+              {ARCHITECTURE_FLOW.map((item, index) => (
+                <div key={item} className="flex min-w-0 items-center gap-2">
+                  <span className="max-w-full rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground">
+                    {item}
+                  </span>
+                  {index < ARCHITECTURE_FLOW.length - 1 ? (
+                    <ChevronRight className="size-3.5 text-muted-foreground" />
+                  ) : null}
+                </div>
+              ))}
+            </div>
+            <div className="min-w-0 rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
+              Orchestration steps are MCP tool calls. The LLM-backed parts are
+              explicit in two places: the server-side agent chooses MCP tools,
+              and the backend may also use OpenAI inside synthesis or chat tools
+              when configured.
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0 overflow-hidden">
             <CardHeader>
               <CardTitle>Fixed demo input</CardTitle>
               <CardDescription>
@@ -487,38 +369,151 @@ export default function McpDemoPage() {
             </CardContent>
           </Card>
 
-          <Card className="min-w-0 overflow-hidden">
+        <Card className="min-w-0 overflow-hidden">
+          <CardHeader>
+            <CardTitle>Agent workflow</CardTitle>
+            <CardDescription>
+              Each card shows why the LLM agent chose an MCP tool, the
+              structured arguments, the MCP response, and how the output feeds
+              the next decision.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="min-w-0 space-y-3">
+            <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
+              <p className="text-sm font-medium text-foreground">
+                0. Agent discovers MCP tools and receives raw feedback
+              </p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                The server route connects to the Railway MCP service, lists
+                available tools and schemas, then gives that manifest plus the
+                product feedback to the model.
+              </p>
+              {data ? (
+                <div className="mt-3">
+                  <ToolDiscoveryDisclosure tools={data.discoveredTools} />
+                </div>
+              ) : null}
+            </div>
+
+            {visibleSteps.map((step, index) => (
+              <WorkflowStepCard key={step.id} step={step} index={index + 1} />
+            ))}
+          </CardContent>
+        </Card>
+
+        {data ? (
+          <Card className="min-w-0 overflow-hidden border border-primary/20 bg-card">
             <CardHeader>
-              <CardTitle>Agent workflow</CardTitle>
+              <CardTitle>Grounded product recommendation</CardTitle>
               <CardDescription>
-                Each card shows why the LLM agent chose an MCP tool, the
-                structured arguments, the MCP response, and how the output feeds
-                the next decision.
+                Final answer rendered from MCP outputs returned by the server
+                route.
               </CardDescription>
             </CardHeader>
-            <CardContent className="min-w-0 space-y-3">
-              <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
-                <p className="text-sm font-medium text-foreground">
-                  0. Agent discovers MCP tools and receives raw feedback
+            <CardContent className="space-y-6">
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Produced from MCP outputs
                 </p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  The server route connects to the Railway MCP service, lists
-                  available tools and schemas, then gives that manifest plus the
-                  product feedback to the model.
-                </p>
-                {data ? (
-                  <div className="mt-3">
-                    <ToolDiscoveryDisclosure tools={data.discoveredTools} />
-                  </div>
-                ) : null}
+                <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <MetadataPill label="agent mode" value={data.mode} />
+                  <MetadataPill
+                    label="analysis_run_id"
+                    value={data.result.analysisRunId}
+                  />
+                  <MetadataPill
+                    label="synthesis method"
+                    value={data.result.synthesisMethod ?? "unknown"}
+                  />
+                  <MetadataPill
+                    label="chat method"
+                    value={data.result.chatMethod ?? "unknown"}
+                  />
+                  <MetadataPill
+                    label="evidence items"
+                    value={String(data.result.evidence.length)}
+                  />
+                  <MetadataPill
+                    label="top themes"
+                    value={String(data.result.topThemes.length)}
+                  />
+                  <MetadataPill
+                    label="discovered tools"
+                    value={String(data.discoveredTools.length)}
+                  />
+                </div>
               </div>
 
-              {visibleSteps.map((step, index) => (
-                <WorkflowStepCard key={step.id} step={step} index={index + 1} />
-              ))}
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  Executive summary
+                </p>
+                <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">
+                  {data.result.executiveSummary}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  Recommendation
+                </p>
+                <p className="mt-2 break-words text-sm leading-6 text-foreground">
+                  {data.result.recommendation}
+                </p>
+              </div>
+
+              <div className="grid min-w-0 gap-4 md:grid-cols-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    Top themes
+                  </p>
+                  <div className="mt-3 min-w-0 space-y-2">
+                    {data.result.topThemes.slice(0, 3).map((theme, index) => (
+                      <div
+                        key={`${String(theme.name)}-${index}`}
+                        className="min-w-0 rounded-lg border border-border bg-muted/40 px-3 py-2"
+                      >
+                        <div className="break-words text-sm font-medium text-foreground">
+                          {typeof theme.name === "string"
+                            ? theme.name
+                            : `Theme ${index + 1}`}
+                        </div>
+                        {typeof theme.description === "string" ? (
+                          <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
+                            {theme.description}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    Evidence
+                  </p>
+                  <div className="mt-3 min-w-0 space-y-2">
+                    {data.result.evidence.slice(0, 3).map((item, index) => (
+                      <div
+                        key={`${item.text}-${index}`}
+                        className="min-w-0 rounded-lg border border-border bg-muted/40 px-3 py-2"
+                      >
+                        <p className="break-words text-sm leading-5 text-foreground">
+                          "{item.text}"
+                        </p>
+                        <p className="mt-1 break-words text-xs text-muted-foreground">
+                          {[item.sourceLabel, item.themeName]
+                            .filter(Boolean)
+                            .join(" • ") || "Feedback evidence"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        </div>
+        ) : null}
       </section>
     </main>
   )
