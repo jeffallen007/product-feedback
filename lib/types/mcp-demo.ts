@@ -40,12 +40,19 @@ export interface McpDemoEvidenceItem {
   category?: string | null
 }
 
+export interface McpDemoDiscoveredTool {
+  name: string
+  description?: string
+  inputSchema: Record<string, unknown>
+}
+
 export interface McpDemoStep {
-  id: McpDemoStepId
+  id: string
   label: string
-  toolName: McpDemoStepId
+  toolName: string
   status: McpDemoStepStatus
   summary: string
+  agentDecision?: string
   inputPreview?: Record<string, unknown>
   outputPreview?: Record<string, unknown>
   output?: Record<string, unknown>
@@ -66,7 +73,9 @@ export interface McpDemoResult {
 
 export interface McpDemoResponse {
   status: "completed"
+  mode: "llm_agent_mcp"
   mcpServerUrl: string
+  discoveredTools: McpDemoDiscoveredTool[]
   steps: McpDemoStep[]
   result: McpDemoResult
 }

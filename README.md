@@ -4,7 +4,7 @@ AI Product Feedback Synthesizer is a portfolio demo application that turns fragm
 
 The app lets a user create a feedback set, synthesize product insights, review a dashboard, and ask follow-up questions through a chat interface. It is designed to demonstrate product thinking, full-stack execution, backend persistence, and applied AI product architecture.
 
-The homepage also includes a secondary `/mcp-demo` route for technical reviewers. That page runs the same workflow through MCP-backed tools via a server-side Next.js route instead of the normal web UI.
+The homepage also includes a secondary `/mcp-demo` route for technical reviewers. That page runs the same workflow through MCP-backed tools via a server-side Next.js agent route instead of the normal web UI.
 
 ## Live Demo
 
@@ -45,11 +45,11 @@ This path uses the normal web UI and writes rows through the deployed backend AP
 1. Open `/mcp-demo`
 2. Click `Run Agent Workflow`
 3. The browser calls a Next.js server route
-4. The server route uses the official MCP TypeScript client
-5. The MCP client calls the deployed Railway MCP service over Streamable HTTP
-6. The MCP service invokes the product tool workflow:
-   `create_feedback_set` → `add_pasted_feedback` → `run_synthesis` → `get_analysis_bundle` → `ask_analysis_question`
-7. The page renders the structured MCP results, tool handoffs, and final recommendation
+4. The server route uses the official MCP TypeScript client to discover tools from the deployed Railway MCP service
+5. The route gives an OpenAI model the product goal, feedback text, and discovered MCP tool manifest
+6. The model selects the next MCP tool and arguments; the server validates the selection and executes it through the MCP client
+7. Tool results are fed back to the model until it returns a final grounded recommendation
+8. The page renders discovered tools, agent decisions, structured MCP results, tool handoffs, and final recommendation
 
 ## Architecture
 
@@ -59,6 +59,8 @@ Browser
 Vercel Next.js Frontend
       ↓
 Next.js Server Route (/api/mcp-demo/run)
+      ↓
+OpenAI Agent Tool Selection
       ↓
 MCP TypeScript Client
       ↓
@@ -106,7 +108,7 @@ Implemented:
 * dashboard bundle retrieval
 * persisted chat messages
 * server-side `/mcp-demo` route using the official MCP TypeScript client
-* MCP-backed agent workflow demo for technical reviewers
+* LLM-driven MCP agent workflow demo for technical reviewers
 * backend and frontend test coverage
 * production deployment on Vercel and Railway
 
@@ -190,9 +192,11 @@ Frontend env vars:
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_USE_BACKEND_DEMO=true
 MCP_SERVER_URL=https://product-feedback-mcp-production.up.railway.app/mcp
+OPENAI_API_KEY=
+OPENAI_MODEL_AGENT=gpt-4.1-mini
 ```
 
-`MCP_SERVER_URL` is server-side only. The `/mcp-demo` page calls `POST /api/mcp-demo/run`, and that route connects to the deployed MCP service over Streamable HTTP.
+`MCP_SERVER_URL`, `OPENAI_API_KEY`, and `OPENAI_MODEL_AGENT` are server-side only. The `/mcp-demo` page calls `POST /api/mcp-demo/run`; that route asks the model to choose MCP tools and executes selected tools through the deployed MCP service over Streamable HTTP. If `OPENAI_API_KEY` is missing, the agent demo returns a clear error instead of falling back to a scripted workflow.
 
 ### Backend Setup
 

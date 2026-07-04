@@ -260,7 +260,9 @@ export default function McpDemoPage() {
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
               This demo shows an agent calling the Product Feedback Synthesizer
-              through MCP tools instead of the web UI.
+              through MCP tools instead of the web UI. The server route asks an
+              OpenAI model to choose each MCP action after discovering the tool
+              manifest.
             </p>
           </div>
 
@@ -308,12 +310,9 @@ export default function McpDemoPage() {
               </div>
               <div className="min-w-0 rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
                 Orchestration steps are MCP tool calls. The LLM-backed parts are
-                primarily <code className="font-mono text-xs">run_synthesis</code>{" "}
-                and{" "}
-                <code className="font-mono text-xs">
-                  ask_analysis_question
-                </code>
-                .
+                explicit in two places: the server-side agent chooses MCP tools,
+                and the backend may also use OpenAI inside synthesis or chat
+                tools when configured.
               </div>
             </CardContent>
           </Card>
@@ -346,6 +345,10 @@ export default function McpDemoPage() {
                   </p>
                   <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2">
                     <MetadataPill
+                      label="agent mode"
+                      value={data.mode}
+                    />
+                    <MetadataPill
                       label="analysis_run_id"
                       value={data.result.analysisRunId}
                     />
@@ -364,6 +367,10 @@ export default function McpDemoPage() {
                     <MetadataPill
                       label="top themes"
                       value={String(data.result.topThemes.length)}
+                    />
+                    <MetadataPill
+                      label="discovered tools"
+                      value={String(data.discoveredTools.length)}
                     />
                   </div>
                 </div>
@@ -484,19 +491,26 @@ export default function McpDemoPage() {
             <CardHeader>
               <CardTitle>Agent workflow</CardTitle>
               <CardDescription>
-                Each card shows the MCP tool call, the structured arguments, the
-                structured response, and how the output feeds the next step.
+                Each card shows why the LLM agent chose an MCP tool, the
+                structured arguments, the MCP response, and how the output feeds
+                the next decision.
               </CardDescription>
             </CardHeader>
             <CardContent className="min-w-0 space-y-3">
               <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
                 <p className="text-sm font-medium text-foreground">
-                  0. Agent receives raw product feedback
+                  0. Agent discovers MCP tools and receives raw feedback
                 </p>
                 <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  Eight lines of raw product feedback are sent to the Next.js
-                  server route, which then uses MCP to execute the workflow.
+                  The server route connects to the Railway MCP service, lists
+                  available tools and schemas, then gives that manifest plus the
+                  product feedback to the model.
                 </p>
+                {data ? (
+                  <div className="mt-3">
+                    <ToolDiscoveryDisclosure tools={data.discoveredTools} />
+                  </div>
+                ) : null}
               </div>
 
               {visibleSteps.map((step, index) => (
@@ -550,7 +564,7 @@ function WorkflowStepCard({
                 className="gap-1 border border-primary/20 bg-accent text-accent-foreground"
               >
                 <Sparkles className="size-3" />
-                LLM-capable step
+                LLM selected
               </Badge>
             ) : null}
           </div>
@@ -558,10 +572,20 @@ function WorkflowStepCard({
             {step.summary}
           </p>
 
+          <div className="rounded-lg border border-primary/15 bg-card/70 px-3 py-3">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Agent decision
+            </p>
+            <p className="mt-2 break-words text-sm leading-6 text-foreground">
+              {step.agentDecision ??
+                "Waiting for the LLM agent to choose the next MCP action."}
+            </p>
+          </div>
+
           <div className="grid min-w-0 gap-3">
             <div className="rounded-lg border border-border bg-card/70 px-3 py-3">
               <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                MCP tool
+                MCP tool selected
               </p>
               <div className="mt-2 min-w-0 overflow-x-auto">
                 <code className="font-mono text-xs text-foreground">
@@ -594,6 +618,44 @@ function WorkflowStepCard({
         </div>
       </div>
     </div>
+  )
+}
+
+function ToolDiscoveryDisclosure({
+  tools,
+}: {
+  tools: McpDemoResponse["discoveredTools"]
+}) {
+  return (
+    <details className="group min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-card">
+      <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium text-foreground">
+        Agent discovered MCP tools
+        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="min-w-0 max-w-full space-y-3 overflow-hidden border-t border-border px-3 py-3">
+        {tools.map((tool) => (
+          <div
+            key={tool.name}
+            className="min-w-0 rounded-lg border border-border bg-muted/30 px-3 py-3"
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <code className="break-all font-mono text-xs text-foreground">
+                {tool.name}
+              </code>
+              {tool.description ? (
+                <span className="break-words text-xs text-muted-foreground">
+                  {tool.description}
+                </span>
+              ) : null}
+            </div>
+            <JsonDisclosure
+              label="View input schema"
+              value={tool.inputSchema}
+            />
+          </div>
+        ))}
+      </div>
+    </details>
   )
 }
 
