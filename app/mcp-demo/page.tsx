@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import type { ReactNode } from "react"
 import { useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
@@ -239,7 +238,7 @@ export default function McpDemoPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-10 sm:px-8 sm:py-12">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col overflow-x-hidden px-6 py-10 sm:px-8 sm:py-12">
       <div className="flex items-center justify-between gap-4">
         <Button variant="ghost" size="sm" render={<Link href="/" />}>
           <ArrowLeft className="size-4" />
@@ -254,7 +253,7 @@ export default function McpDemoPage() {
       </div>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <div className="max-w-2xl">
             <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
               MCP-Powered Product Feedback Agent
@@ -278,13 +277,13 @@ export default function McpDemoPage() {
               )}
               Run Agent Workflow
             </Button>
-            <div className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+            <div className="inline-flex max-w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
               <Server className="size-4 text-primary" />
               Calls the deployed MCP service over Streamable HTTP.
             </div>
           </div>
 
-          <Card className="border border-primary/15 bg-card">
+          <Card className="min-w-0 overflow-hidden border border-primary/15 bg-card">
             <CardHeader>
               <CardTitle>How the request flows</CardTitle>
               <CardDescription>
@@ -295,10 +294,10 @@ export default function McpDemoPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {ARCHITECTURE_FLOW.map((item, index) => (
-                  <div key={item} className="flex items-center gap-2">
-                    <span className="rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground">
+                  <div key={item} className="flex min-w-0 items-center gap-2">
+                    <span className="max-w-full rounded-full border border-border bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground">
                       {item}
                     </span>
                     {index < ARCHITECTURE_FLOW.length - 1 ? (
@@ -307,7 +306,7 @@ export default function McpDemoPage() {
                   </div>
                 ))}
               </div>
-              <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
+              <div className="min-w-0 rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm leading-6 text-muted-foreground">
                 Orchestration steps are MCP tool calls. The LLM-backed parts are
                 primarily <code className="font-mono text-xs">run_synthesis</code>{" "}
                 and{" "}
@@ -332,7 +331,7 @@ export default function McpDemoPage() {
           ) : null}
 
           {data ? (
-            <Card className="border border-primary/20 bg-card">
+            <Card className="min-w-0 overflow-hidden border border-primary/20 bg-card">
               <CardHeader>
                 <CardTitle>Grounded product recommendation</CardTitle>
                 <CardDescription>
@@ -345,7 +344,7 @@ export default function McpDemoPage() {
                   <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Produced from MCP outputs
                   </p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2">
                     <MetadataPill
                       label="analysis_run_id"
                       value={data.result.analysisRunId}
@@ -373,7 +372,7 @@ export default function McpDemoPage() {
                   <p className="text-sm font-medium text-foreground">
                     Executive summary
                   </p>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">
                     {data.result.executiveSummary}
                   </p>
                 </div>
@@ -382,29 +381,29 @@ export default function McpDemoPage() {
                   <p className="text-sm font-medium text-foreground">
                     Recommendation
                   </p>
-                  <p className="mt-2 text-sm leading-6 text-foreground">
+                  <p className="mt-2 break-words text-sm leading-6 text-foreground">
                     {data.result.recommendation}
                   </p>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
+                <div className="grid min-w-0 gap-4 md:grid-cols-2">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground">
                       Top themes
                     </p>
-                    <div className="mt-3 space-y-2">
+                    <div className="mt-3 min-w-0 space-y-2">
                       {data.result.topThemes.slice(0, 3).map((theme, index) => (
                         <div
                           key={`${String(theme.name)}-${index}`}
-                          className="rounded-lg border border-border bg-muted/40 px-3 py-2"
+                          className="min-w-0 rounded-lg border border-border bg-muted/40 px-3 py-2"
                         >
-                          <div className="text-sm font-medium text-foreground">
+                          <div className="break-words text-sm font-medium text-foreground">
                             {typeof theme.name === "string"
                               ? theme.name
                               : `Theme ${index + 1}`}
                           </div>
                           {typeof theme.description === "string" ? (
-                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                            <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">
                               {theme.description}
                             </p>
                           ) : null}
@@ -413,20 +412,20 @@ export default function McpDemoPage() {
                     </div>
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground">
                       Evidence
                     </p>
-                    <div className="mt-3 space-y-2">
+                    <div className="mt-3 min-w-0 space-y-2">
                       {data.result.evidence.slice(0, 3).map((item, index) => (
                         <div
                           key={`${item.text}-${index}`}
-                          className="rounded-lg border border-border bg-muted/40 px-3 py-2"
+                          className="min-w-0 rounded-lg border border-border bg-muted/40 px-3 py-2"
                         >
-                          <p className="text-sm leading-5 text-foreground">
+                          <p className="break-words text-sm leading-5 text-foreground">
                             "{item.text}"
                           </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
+                          <p className="mt-1 break-words text-xs text-muted-foreground">
                             {[item.sourceLabel, item.themeName]
                               .filter(Boolean)
                               .join(" • ") || "Feedback evidence"}
@@ -441,8 +440,8 @@ export default function McpDemoPage() {
           ) : null}
         </div>
 
-        <div className="space-y-6">
-          <Card>
+        <div className="min-w-0 space-y-6">
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader>
               <CardTitle>Fixed demo input</CardTitle>
               <CardDescription>
@@ -481,7 +480,7 @@ export default function McpDemoPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="min-w-0 overflow-hidden">
             <CardHeader>
               <CardTitle>Agent workflow</CardTitle>
               <CardDescription>
@@ -489,8 +488,8 @@ export default function McpDemoPage() {
                 structured response, and how the output feeds the next step.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
+            <CardContent className="min-w-0 space-y-3">
+              <div className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
                 <p className="text-sm font-medium text-foreground">
                   0. Agent receives raw product feedback
                 </p>
@@ -521,14 +520,14 @@ function WorkflowStepCard({
   return (
     <div
       className={cn(
-        "rounded-lg border px-4 py-4",
+        "min-w-0 max-w-full overflow-hidden rounded-lg border px-4 py-4",
         step.status === "completed" && "border-primary/25 bg-primary/5",
         step.status === "running" && "border-primary/35 bg-accent/60",
         step.status === "failed" && "border-destructive/30 bg-destructive/5",
         step.status === "pending" && "border-border bg-card",
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex min-w-0 items-start gap-3">
         <div className="mt-0.5">
           {step.status === "completed" ? (
             <CheckCircle2 className="size-4 text-success" />
@@ -541,8 +540,8 @@ function WorkflowStepCard({
           )}
         </div>
         <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <p className="min-w-0 break-words text-sm font-medium text-foreground">
               {index}. {step.label}
             </p>
             {step.llmInvolved ? (
@@ -555,37 +554,33 @@ function WorkflowStepCard({
               </Badge>
             ) : null}
           </div>
-          <p className="text-sm leading-6 text-muted-foreground">{step.summary}</p>
+          <p className="break-words text-sm leading-6 text-muted-foreground">
+            {step.summary}
+          </p>
 
-          <div className="grid gap-3">
-            <DetailBlock
-              label="MCP tool"
-              content={
+          <div className="grid min-w-0 gap-3">
+            <div className="rounded-lg border border-border bg-card/70 px-3 py-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                MCP tool
+              </p>
+              <div className="mt-2 min-w-0 overflow-x-auto">
                 <code className="font-mono text-xs text-foreground">
                   {step.toolName}
                 </code>
-              }
-            />
-            <DetailBlock
-              label="Agent sends"
-              content={<JsonPreview value={step.inputPreview} />}
-            />
-            <DetailBlock
-              label="MCP returns"
-              content={<JsonPreview value={step.outputPreview} />}
-            />
-            <DetailBlock
-              label="Used next for"
-              content={
-                <p className="text-sm leading-6 text-muted-foreground">
-                  {step.usedNextFor ?? "Waiting for workflow completion."}
-                </p>
-              }
-            />
+              </div>
+            </div>
+            <div className="rounded-lg border border-border bg-card/70 px-3 py-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                Used next for
+              </p>
+              <p className="mt-2 break-words text-sm leading-6 text-muted-foreground">
+                {step.usedNextFor ?? "Waiting for workflow completion."}
+              </p>
+            </div>
           </div>
 
           {step.technicalNote ? (
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+            <div className="min-w-0 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
               {step.technicalNote}
             </div>
           ) : null}
@@ -602,31 +597,6 @@ function WorkflowStepCard({
   )
 }
 
-function DetailBlock({
-  label,
-  content,
-}: {
-  label: string
-  content: ReactNode
-}) {
-  return (
-    <div className="rounded-lg border border-border bg-card/70 px-3 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <div className="mt-2">{content}</div>
-    </div>
-  )
-}
-
-function JsonPreview({ value }: { value: Record<string, unknown> | undefined }) {
-  return (
-    <pre className="overflow-x-auto rounded-lg bg-muted/40 p-3 font-mono text-xs leading-5 text-foreground">
-      {formatJson(value)}
-    </pre>
-  )
-}
-
 function JsonDisclosure({
   label,
   value,
@@ -635,13 +605,13 @@ function JsonDisclosure({
   value: Record<string, unknown>
 }) {
   return (
-    <details className="group rounded-lg border border-border bg-card">
-      <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-medium text-foreground">
+    <details className="group min-w-0 max-w-full overflow-hidden rounded-lg border border-border bg-card">
+      <summary className="flex min-w-0 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-medium text-foreground">
         {label}
         <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
       </summary>
-      <div className="border-t border-border px-3 py-3">
-        <pre className="overflow-x-auto rounded-lg bg-muted/40 p-3 font-mono text-xs leading-5 text-foreground">
+      <div className="min-w-0 max-w-full overflow-hidden border-t border-border px-3 py-3">
+        <pre className="max-w-full overflow-x-auto rounded-lg bg-muted/40 p-3 font-mono text-xs leading-5 text-foreground">
           {formatJson(value)}
         </pre>
       </div>
@@ -651,7 +621,7 @@ function JsonDisclosure({
 
 function MetadataPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2">
+    <div className="min-w-0 rounded-lg border border-border bg-card px-3 py-2">
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
