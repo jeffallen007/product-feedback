@@ -27,7 +27,9 @@ This app demonstrates a workflow for converting that fragmented feedback into:
 
 ## Demo Flow
 
-The currently supported end-to-end flow is the demo dataset path:
+The app currently supports two portfolio demo paths:
+
+### Standard product demo
 
 1. Choose `Try Demo Dataset`
 2. Select a demo product, such as `Productivity Tool`
@@ -36,16 +38,35 @@ The currently supported end-to-end flow is the demo dataset path:
 5. Review the dashboard
 6. Ask follow-up questions in chat
 
-The deployed demo writes rows to Supabase and retrieves the dashboard through the backend API.
+This path uses the normal web UI and writes rows through the deployed backend API.
+
+### MCP agent demo
+
+1. Open `/mcp-demo`
+2. Click `Run Agent Workflow`
+3. The browser calls a Next.js server route
+4. The server route uses the official MCP TypeScript client
+5. The MCP client calls the deployed Railway MCP service over Streamable HTTP
+6. The MCP service invokes the product tool workflow:
+   `create_feedback_set` → `add_pasted_feedback` → `run_synthesis` → `get_analysis_bundle` → `ask_analysis_question`
+7. The page renders the structured MCP results, tool handoffs, and final recommendation
 
 ## Architecture
 
 ```text
-Vercel Frontend
+Browser
       ↓
-Railway FastAPI Backend
+Vercel Next.js Frontend
       ↓
-Supabase Database
+Next.js Server Route (/api/mcp-demo/run)
+      ↓
+MCP TypeScript Client
+      ↓
+Railway MCP Server (/mcp)
+      ↓
+FastAPI Backend
+      ↓
+Supabase Database and/or OpenAI
 ```
 
 ## Tech Stack
@@ -77,12 +98,15 @@ Implemented:
 
 * deployed Next.js frontend
 * deployed FastAPI backend
+* deployed Railway MCP server
 * Supabase-backed demo dataset flow
 * feedback set creation
 * demo source creation
 * synthesis run creation
 * dashboard bundle retrieval
 * persisted chat messages
+* server-side `/mcp-demo` route using the official MCP TypeScript client
+* MCP-backed agent workflow demo for technical reviewers
 * backend and frontend test coverage
 * production deployment on Vercel and Railway
 
