@@ -1,6 +1,6 @@
 # Real synthesis progress — implementation plan
 
-Status: approved design choices; implementation has not started. This plan addresses the standard web demo and custom feedback flows. The existing MCP workflow must continue to work.
+Status: approved and implemented on `feature/live-synthesis-progress`; deployment is pending. This plan addresses the standard web demo and custom feedback flows. The existing MCP workflow must continue to work.
 
 ## Goal and acceptance criteria
 
@@ -37,6 +37,7 @@ No production synthesis was submitted for this planning task; the reported 20–
 4. **Loading and preparing feedback** — the worker loads persisted rows and prepares the synthesis input.
 5. **Generating insights** — the worker completes the existing OpenAI or deterministic synthesis call. This can be the longest stage.
 6. **Saving dashboard** — the worker persists the dashboard and marks the run complete.
+7. **Opening dashboard** — the browser fetches and validates the completed bundle.
 
 The first three stages are confirmed by browser request results; the last three are confirmed by persisted backend status. The active stage has an indeterminate per-stage bar, which fills only on completion; later stages stay pending. An overall bar can use completed-stage count, clearly representing stages rather than time or item-level percentage. Remove or rename the current untracked labels for deduplication and trained ML classification unless those operations are actually implemented and instrumented. The processing view should not add a fixed delay after completion.
 
@@ -92,3 +93,10 @@ If Codex cannot create the service, provide these finalized instructions to the 
 4. Apply the additive Supabase migration first. Deploy the API and worker, then confirm the worker logs show successful startup and that a staging run moves from `queued` through the real stages to `completed`. Only then enable the new Vercel frontend flag and redeploy the frontend. Keep the old synchronous API path for rollback.
 
 The precise command, variable names, and Railway settings must be rechecked against the implemented worker and live API service before anyone follows these instructions. The owner does not need to take these steps now.
+
+## Implementation notes and deployment status
+
+- The additive migration stores the three worker stages as ordered JSON in `analysis_runs.steps_json`, rather than creating a separate run-step table. The existing run row is the single source for a status poll; a worker claim resets those stages when an expired lease is retried. Claim, lease renewal, and dashboard finalization are service-role-only PostgreSQL functions. Finalization saves the summary and marks the run completed in one transaction.
+- The frontend flag is `NEXT_PUBLIC_USE_ASYNC_SYNTHESIS=true`, and it only takes effect when the backend demo path is enabled. The flag remains off by default. The old synchronous route remains available for MCP and rollback.
+- A local PostgreSQL 17 instance applied all three migrations and exercised claim, expired-lease reclaim, step reset, finalization, and rejection of the former worker's stale claim. Automated API and frontend tests, type checking, and a production build passed during implementation.
+- The Railway project has a production environment with API and MCP services but no staging environment. The API service uses the GitHub repository's `main` branch, root `/apps/api`, and the `uvicorn app.main:app --host 0.0.0.0 --port $PORT` start command. No Supabase migration, Railway service, Vercel variable, or production deploy has been changed yet. Deployment should follow the sequence above after the implementation branch is reviewed and merged.

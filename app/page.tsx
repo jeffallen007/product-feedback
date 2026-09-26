@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { BrandMark } from "@/components/brand-mark"
 import { StepIndicator } from "@/components/step-indicator"
 import { HeroEntry } from "@/components/hero-entry"
@@ -26,8 +26,17 @@ import {
   buildDemoReviewState,
   createFeedbackSet,
   runDemoAnalysis,
+  registerBackendAnalysisRun,
+  getAnalysisRunBundle,
   synthesizeFeedbackSet,
 } from "@/lib/services/analysis-service"
+import { isAsyncSynthesisEnabled } from "@/lib/services/backend-client"
+import {
+  initialProgressSnapshot,
+  pollAnalysisRun,
+  runProgressWorkflow,
+  type ProgressSnapshot,
+} from "@/lib/services/progress-workflow"
 import { parseCsvUpload } from "@/lib/services/csv-upload"
 
 type Path = "demo" | "custom"
@@ -72,10 +81,49 @@ export default function Page() {
   const [analysisRunId, setAnalysisRunId] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submissionError, setSubmissionError] = useState<string | null>(null)
-  const [processingSummary, setProcessingSummary] = useState({
-    feedbackItemCount: 592,
-    sourceCount: 3,
-  })
+  const [processingProgress, setProcessingProgress] = useState<ProgressSnapshot>(
+    initialProgressSnapshot,
+  )
+  const [processingError, setProcessingError] = useState<string | null>(null)
+  const requestActive = useRef(false)
+
+  useEffect(() => {
+    if (!isAsyncSynthesisEnabled()) return
+    const runId = new URL(window.location.href).searchParams.get("analysisRunId")
+    if (!runId || requestActive.current) return
+    requestActive.current = true
+    registerBackendAnalysisRun(runId)
+    setAnalysisRunId(runId)
+    setScreen("processing")
+    const snapshot = initialProgressSnapshot()
+    snapshot.stages.create_feedback_set = "completed"
+    snapshot.stages.ingest_sources = "completed"
+    snapshot.stages.start_analysis = "completed"
+    setProcessingProgress(snapshot)
+    void (async () => {
+      try {
+        await pollAnalysisRun(runId, snapshot, {
+          onProgress: setProcessingProgress,
+          onRunId: () => {},
+        })
+        snapshot.stages.load_dashboard = "running"
+        setProcessingProgress({ ...snapshot, stages: { ...snapshot.stages } })
+        const bundle = await getAnalysisRunBundle({ analysisRunId: runId })
+        if (!bundle.dashboard) throw new Error("The analysis dashboard is unavailable.")
+        snapshot.stages.load_dashboard = "completed"
+        setProcessingProgress({ ...snapshot, stages: { ...snapshot.stages } })
+        setScreen("dashboard")
+      } catch (error) {
+        if (snapshot.stages.load_dashboard === "running") {
+          snapshot.stages.load_dashboard = "failed"
+          setProcessingProgress({ ...snapshot, stages: { ...snapshot.stages } })
+        }
+        setProcessingError(error instanceof Error ? error.message : "Unable to resume analysis.")
+      } finally {
+        requestActive.current = false
+      }
+    })()
+  }, [])
 
   function toggleSource(id: WorkflowSourceId) {
     setSelected((prev) =>
@@ -141,6 +189,10 @@ export default function Page() {
   }
 
   function startNewAnalysis() {
+    const url = new URL(window.location.href)
+    url.searchParams.delete("analysisRunId")
+    window.history.replaceState(null, "", url)
+    requestActive.current = false
     setScreen("entry")
     setProduct(EMPTY_PRODUCT_CONTEXT)
     setSelected(["paste"])
@@ -153,6 +205,8 @@ export default function Page() {
     setReviewSources([])
     setAnalysisRunId(null)
     setSubmissionError(null)
+    setProcessingError(null)
+    setProcessingProgress(initialProgressSnapshot())
   }
 
   async function handleCsvFileChange(file: File | null) {
@@ -184,7 +238,52 @@ export default function Page() {
   }
 
   async function handleSynthesize() {
+    if (requestActive.current || isSubmitting) return
     setSubmissionError(null)
+    if (reviewSources.length === 0) return
+    if (reviewSources.some((source) => source.sourceType === "csv_upload") && !csvFile) {
+      setSubmissionError("Select a CSV file before synthesizing.")
+      return
+    }
+    if (isAsyncSynthesisEnabled()) {
+      requestActive.current = true
+      setProcessingProgress(initialProgressSnapshot())
+      setProcessingError(null)
+      setScreen("processing")
+      void (async () => {
+        try {
+          const runId = await runProgressWorkflow(
+            {
+              path,
+              demoProductId: demoProduct,
+              product: { ...reviewProduct },
+              analysisGoal: goal,
+              sources: [...reviewSources],
+              csvFile,
+              pastedText: pasteValue,
+            },
+            {
+              onProgress: setProcessingProgress,
+              onRunId: (runId) => {
+                setAnalysisRunId(runId)
+                const url = new URL(window.location.href)
+                url.searchParams.set("analysisRunId", runId)
+                window.history.replaceState(null, "", url)
+              },
+            },
+          )
+          setAnalysisRunId(runId)
+          setScreen("dashboard")
+        } catch (error) {
+          setProcessingError(
+            error instanceof Error ? error.message : "Something went wrong while analyzing feedback.",
+          )
+        } finally {
+          requestActive.current = false
+        }
+      })()
+      return
+    }
     setIsSubmitting(true)
 
     try {
@@ -199,17 +298,7 @@ export default function Page() {
         })
 
         setAnalysisRunId(result.analysisRun.id)
-        setProcessingSummary({
-          feedbackItemCount:
-            result.bundle.feedbackSet.totalFeedbackCount ||
-            Number(result.analysisRun.metadata.feedbackItemCount) ||
-            592,
-          sourceCount:
-            result.bundle.sources.length ||
-            Number(result.analysisRun.metadata.sourceCount) ||
-            1,
-        })
-        setScreen("processing")
+        setScreen("dashboard")
         return
       }
 
@@ -262,12 +351,7 @@ export default function Page() {
       })
 
       setAnalysisRunId(analysisRun.analysisRun.id)
-      setProcessingSummary({
-        feedbackItemCount:
-          Number(analysisRun.analysisRun.metadata.feedbackItemCount) || 592,
-        sourceCount: Number(analysisRun.analysisRun.metadata.sourceCount) || 3,
-      })
-      setScreen("processing")
+      setScreen("dashboard")
     } catch (error) {
       setSubmissionError(
         error instanceof Error
@@ -294,9 +378,9 @@ export default function Page() {
   if (screen === "processing") {
     return (
       <ProcessingState
-        feedbackItemCount={processingSummary.feedbackItemCount}
-        sourceCount={processingSummary.sourceCount}
-        onComplete={() => setScreen("dashboard")}
+        progress={processingProgress}
+        errorMessage={processingError}
+        onStartOver={startNewAnalysis}
       />
     )
   }

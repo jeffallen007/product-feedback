@@ -112,6 +112,9 @@ export interface AnalysisRunStep {
     | "cluster_themes"
     | "retrieve_quotes"
     | "generate_dashboard"
+    | "prepare_feedback"
+    | "generate_insights"
+    | "save_dashboard"
   status: "pending" | "running" | "completed" | "failed"
   startedAt: string | null
   completedAt: string | null

@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from app.schemas.base import CamelModel
 from app.schemas.chat import ChatMessageResponse
@@ -13,6 +14,11 @@ class SynthesizeFeedbackSetRequest(CamelModel):
     analysis_goal: str | None = None
 
 
+class QueueAnalysisRunRequest(CamelModel):
+    analysis_goal: str | None = None
+    request_key: UUID
+
+
 class AnalysisRunResponse(CamelModel):
     id: str
     feedback_set_id: str
@@ -23,6 +29,14 @@ class AnalysisRunResponse(CamelModel):
     completed_at: datetime | None = None
     error_message: str | None = None
     metadata: dict[str, object]
+
+
+class QueueAnalysisRunResponse(CamelModel):
+    analysis_run: AnalysisRunResponse
+
+
+class AnalysisRunProgressResponse(CamelModel):
+    analysis_run: AnalysisRunResponse
 
 
 class DashboardContextResponse(CamelModel):

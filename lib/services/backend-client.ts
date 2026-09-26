@@ -12,6 +12,10 @@ export function isBackendDemoEnabled(): boolean {
   return USE_BACKEND_DEMO && API_BASE_URL.length > 0
 }
 
+export function isAsyncSynthesisEnabled(): boolean {
+  return isBackendDemoEnabled() && process.env.NEXT_PUBLIC_USE_ASYNC_SYNTHESIS === "true"
+}
+
 export async function backendRequest<TResponse>(
   path: string,
   init?: RequestInit,
