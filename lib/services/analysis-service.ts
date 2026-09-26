@@ -11,6 +11,7 @@ import { mapBackendBundleResponse } from "@/lib/services/backend-mappers"
 import { countCsvFeedbackItems } from "@/lib/services/csv-upload"
 import type {
   AnalysisBundleMeta,
+  AnalysisRunProgressResponse,
   AddCsvSourceRequest,
   AddCsvSourceResponse,
   AddDemoSourceRequest,
@@ -31,6 +32,8 @@ import type {
   GetAnalysisRunBundleResponse,
   GetAnalysisRunRequest,
   GetAnalysisRunResponse,
+  QueueAnalysisRunRequest,
+  QueueAnalysisRunResponse,
   RunDemoAnalysisRequest,
   RunDemoAnalysisResponse,
   SynthesizeFeedbackSetRequest,
@@ -58,6 +61,10 @@ const feedbackSetStore = new Map<string, MockFeedbackSetRecord>()
 const analysisRunStore = new Map<string, GetAnalysisRunResponse>()
 const analysisRunBundleStore = new Map<string, GetAnalysisRunBundleResponse>()
 const analysisRunModeStore = new Map<string, "mock" | "backend">()
+
+export function registerBackendAnalysisRun(analysisRunId: string): void {
+  analysisRunModeStore.set(analysisRunId, "backend")
+}
 
 const BACKEND_DEMO_PRODUCT_IDS: Record<
   BuildDemoReviewStateRequest["demoProductId"],
@@ -270,6 +277,29 @@ export async function synthesizeFeedbackSet(
   }
 
   return synthesizeMockFeedbackSet(input)
+}
+
+export async function queueAnalysisRun(
+  input: QueueAnalysisRunRequest,
+): Promise<QueueAnalysisRunResponse> {
+  const response = await backendRequest<QueueAnalysisRunResponse>(
+    `/feedback-sets/${input.feedbackSetId}/analysis-runs`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        analysisGoal: input.analysisGoal,
+        requestKey: input.requestKey,
+      }),
+    },
+  )
+  analysisRunModeStore.set(response.analysisRun.id, "backend")
+  return response
+}
+
+export function getAnalysisRunProgress(analysisRunId: string) {
+  return backendRequest<AnalysisRunProgressResponse>(
+    `/analysis-runs/${analysisRunId}/progress`,
+  )
 }
 
 export async function getAnalysisRunBundle(

@@ -286,7 +286,7 @@ class FakeAnalysisSupabaseClient:
             "started_at": datetime(2026, 6, 18, 9, 0, tzinfo=UTC).isoformat(),
             "completed_at": datetime(2026, 6, 18, 9, 0, tzinfo=UTC).isoformat(),
             "error_message": None,
-            "metadata_json": payload["metadata_json"],
+            "metadata_json": payload.get("metadata_json", {}),
         }
 
     @staticmethod
@@ -480,8 +480,8 @@ def test_create_placeholder_run_persists_analysis_run_and_dashboard_summary() ->
         "data_sources:fetch_rows",
         "feedback_items:fetch_rows",
         "analysis_runs",
-        "analysis_runs:update",
         "dashboard_summaries",
+        "analysis_runs:update",
     ]
 
 
@@ -1279,6 +1279,8 @@ def test_create_placeholder_run_surfaces_dashboard_insert_failure() -> None:
         assert "dashboard_summaries" in str(exc)
     else:
         raise AssertionError("Expected SupabaseInsertError")
+    failure_updates = [call for call in client.calls if call[0] == "analysis_runs:update"]
+    assert failure_updates[-1][1]["payload"]["status"] == "failed"
 
 
 def test_analysis_run_routes_surface_errors() -> None:

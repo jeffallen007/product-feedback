@@ -5,8 +5,11 @@ from fastapi import APIRouter, Body, Depends, status
 from app.api.dependencies import get_analysis_run_service
 from app.api.request_parsing import parse_request_model
 from app.schemas.analysis_runs import (
+    AnalysisRunProgressResponse,
     AnalysisRunBundleResponse,
     GetAnalysisRunResponse,
+    QueueAnalysisRunRequest,
+    QueueAnalysisRunResponse,
     SynthesizeFeedbackSetRequest,
     SynthesizeFeedbackSetResponse,
 )
@@ -18,6 +21,31 @@ from app.schemas.chat import (
 from app.services.analysis_runs import AnalysisRunService
 
 router = APIRouter(tags=["analysis-runs"])
+
+
+@router.post(
+    "/feedback-sets/{feedback_set_id}/analysis-runs",
+    response_model=QueueAnalysisRunResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def queue_analysis_run(
+    feedback_set_id: str,
+    payload: dict[str, Any] = Body(...),
+    service: AnalysisRunService = Depends(get_analysis_run_service),
+) -> QueueAnalysisRunResponse:
+    request = parse_request_model(payload, QueueAnalysisRunRequest)
+    return service.queue_analysis_run(feedback_set_id, request)
+
+
+@router.get(
+    "/analysis-runs/{analysis_run_id}/progress",
+    response_model=AnalysisRunProgressResponse,
+)
+def get_analysis_run_progress(
+    analysis_run_id: str,
+    service: AnalysisRunService = Depends(get_analysis_run_service),
+) -> AnalysisRunProgressResponse:
+    return service.get_analysis_run_progress(analysis_run_id)
 
 
 @router.post(

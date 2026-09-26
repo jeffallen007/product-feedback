@@ -162,14 +162,11 @@ export interface AnalysisRunStep {
   name:
     | "create_feedback_set"
     | "ingest_sources"
-    | "normalize_feedback"
-    | "merge_feedback"
-    | "dedupe_feedback"
-    | "classify_feedback"
-    | "analyze_sentiment"
-    | "cluster_themes"
-    | "retrieve_quotes"
-    | "generate_dashboard"
+    | "start_analysis"
+    | "prepare_feedback"
+    | "generate_insights"
+    | "save_dashboard"
+    | "load_dashboard"
   status: "pending" | "running" | "completed" | "failed"
   startedAt: string | null
   completedAt: string | null
@@ -188,6 +185,12 @@ export interface AnalysisRun {
   metadata: Record<string, unknown>
 }
 ```
+
+The browser owns `create_feedback_set`, `ingest_sources`, `start_analysis`, and
+`load_dashboard`. The asynchronous worker persists the three middle stages in
+`analysis_runs.steps_json`. Historical synchronous runs may have an empty
+`steps` array. The polling route returns only safe run metadata and step status;
+the dashboard is fetched separately after completion.
 
 ## DashboardPayload
 

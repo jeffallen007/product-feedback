@@ -1,5 +1,6 @@
 from collections import Counter
 import logging
+from typing import Any
 
 from app.clients.supabase import SupabaseRestClient
 from app.demo_synthesis import (
@@ -25,10 +26,13 @@ from app.services.feedback_chat import (
     FeedbackChatService,
 )
 from app.schemas.analysis_runs import (
+    AnalysisRunProgressResponse,
     AnalysisRunBundleResponse,
     AnalysisRunResponse,
     DashboardPayloadResponse,
     GetAnalysisRunResponse,
+    QueueAnalysisRunRequest,
+    QueueAnalysisRunResponse,
     SynthesizeFeedbackSetRequest,
     SynthesizeFeedbackSetResponse,
 )
@@ -47,6 +51,19 @@ from app.schemas.feedback_sets import (
 
 logger = logging.getLogger(__name__)
 
+BACKEND_PROGRESS_STEPS = (
+    "prepare_feedback",
+    "generate_insights",
+    "save_dashboard",
+)
+
+
+def _new_progress_steps() -> list[dict[str, object]]:
+    return [
+        {"name": name, "status": "pending", "startedAt": None, "completedAt": None}
+        for name in BACKEND_PROGRESS_STEPS
+    ]
+
 
 class AnalysisRunService:
     def __init__(
@@ -61,6 +78,184 @@ class AnalysisRunService:
             llm_client=None,
         )
         self._chat_service = chat_service or FeedbackChatService(llm_client=None)
+
+    def queue_analysis_run(
+        self,
+        feedback_set_id: str,
+        request: QueueAnalysisRunRequest,
+    ) -> QueueAnalysisRunResponse:
+        request_key = str(request.request_key)
+        existing = self._supabase.fetch_rows(
+            "analysis_runs", filters={"request_key": request_key}, limit=1,
+        )
+        if existing:
+            if str(existing[0]["feedback_set_id"]) != feedback_set_id:
+                raise ValueError("An analysis request key was reused for another feedback set.")
+            return QueueAnalysisRunResponse(analysisRun=self._to_analysis_run_response(existing[0]))
+
+        feedback_set = self._get_feedback_set(feedback_set_id)
+        sources = self._supabase.fetch_rows("data_sources", filters={"feedback_set_id": feedback_set_id})
+        feedback_count = int(feedback_set["total_feedback_count"])
+        if not sources or feedback_count <= 0:
+            raise EmptyFeedbackSetError(f"Feedback set '{feedback_set_id}' has no ingested feedback items.")
+
+        now = iso_now()
+        try:
+            run = self._supabase.insert_row(
+                "analysis_runs",
+                {
+                    "feedback_set_id": feedback_set_id,
+                    "request_key": request_key,
+                    "status": "queued",
+                    "current_step": None,
+                    "started_at": None,
+                    "completed_at": None,
+                    "error_message": None,
+                    "steps_json": _new_progress_steps(),
+                    "metadata_json": {
+                        "analysis_goal": request.analysis_goal or str(feedback_set["analysis_goal"]),
+                        "total_feedback_count": feedback_count,
+                        "source_count": len(sources),
+                        "queued_at": now,
+                    },
+                },
+            )
+        except SupabaseInsertError:
+            # The first request may have succeeded even if its response was lost.
+            matching = self._supabase.fetch_rows(
+                "analysis_runs", filters={"request_key": request_key}, limit=1,
+            )
+            if not matching:
+                raise
+            run = matching[0]
+        return QueueAnalysisRunResponse(analysisRun=self._to_analysis_run_response(run))
+
+    def get_analysis_run_progress(self, analysis_run_id: str) -> AnalysisRunProgressResponse:
+        run = self._get_analysis_run_row(analysis_run_id)
+        response = self._to_analysis_run_response(run)
+        response.metadata = {
+            key: value for key, value in response.metadata.items()
+            if key in {"analysis_goal", "total_feedback_count", "source_count", "synthesis_method"}
+        }
+        return AnalysisRunProgressResponse(analysisRun=response)
+
+    def process_queued_run(self, run: dict[str, Any], *, worker_id: str) -> None:
+        run_id = str(run["id"])
+        attempt_count = int(run["attempt_count"])
+        feedback_set_id = str(run["feedback_set_id"])
+        metadata = dict(run.get("metadata_json") or {})
+
+        self._mark_progress_step(run, "prepare_feedback", "running", worker_id=worker_id)
+        feedback_set = self._get_feedback_set(feedback_set_id)
+        target = self._supabase.fetch_single_row(
+            "analysis_targets", filters={"id": str(feedback_set["analysis_target_id"])},
+        )
+        sources = self._supabase.fetch_rows("data_sources", filters={"feedback_set_id": feedback_set_id})
+        feedback_items = self._supabase.fetch_rows("feedback_items", filters={"feedback_set_id": feedback_set_id})
+        if not sources or not feedback_items:
+            raise EmptyFeedbackSetError(f"Feedback set '{feedback_set_id}' has no ingested feedback items.")
+        dataset_id = self._resolve_demo_product_id(
+            analysis_target=target, sources=sources, feedback_items=feedback_items,
+        )
+        normalized_items = [self._normalize_feedback_item(dataset_id, item) for item in feedback_items]
+        self._mark_progress_step(run, "prepare_feedback", "completed", worker_id=worker_id)
+
+        self._mark_progress_step(run, "generate_insights", "running", worker_id=worker_id)
+        synthesis_result = self._synthesis_service.synthesize(
+            SynthesisRequest(
+                analysis_run_id=run_id,
+                analysis_goal=str(metadata["analysis_goal"]),
+                product_name=str(target["name"]),
+                product_description=str(target["description"]),
+                completed_at=iso_now(),
+                dataset_id=dataset_id,
+                sources=sources,
+                feedback_items=normalized_items,
+            )
+        )
+        self._mark_progress_step(run, "generate_insights", "completed", worker_id=worker_id)
+
+        self._mark_progress_step(run, "save_dashboard", "running", worker_id=worker_id)
+        steps = self._updated_steps(run, "save_dashboard", "completed")
+        metadata.update(synthesis_result.metadata)
+        finished = self._supabase.rpc(
+            "finish_analysis_run",
+            {
+                "p_run_id": run_id,
+                "p_worker_id": worker_id,
+                "p_attempt_count": attempt_count,
+                "p_dashboard": synthesis_result.dashboard_payload.model_dump(by_alias=True),
+                "p_metadata": metadata,
+                "p_steps": steps,
+            },
+        )
+        if finished is not True:
+            raise RuntimeError(f"Analysis run '{run_id}' lost its worker claim before completion.")
+        logger.info("Analysis run completed. analysis_run_id=%s synthesis_method=%s", run_id, metadata.get("synthesis_method"))
+
+    def fail_queued_run(self, run: dict[str, Any], *, worker_id: str) -> None:
+        step_name = str(run.get("current_step") or "prepare_feedback")
+        steps = self._updated_steps(run, step_name, "failed")
+        try:
+            self._supabase.update_row(
+                "analysis_runs",
+                payload={
+                    "status": "failed",
+                    "current_step": step_name,
+                    "steps_json": steps,
+                    "error_message": "Analysis failed. Please start a new analysis.",
+                    "completed_at": iso_now(),
+                    "lease_expires_at": None,
+                    "worker_id": None,
+                },
+                filters={
+                    "id": str(run["id"]),
+                    "attempt_count": str(run["attempt_count"]),
+                    "worker_id": worker_id,
+                    "status": "running",
+                },
+            )
+        except SupabaseInsertError:
+            logger.exception("Could not mark analysis run failed. analysis_run_id=%s", run["id"])
+
+    def _mark_progress_step(
+        self,
+        run: dict[str, Any],
+        step_name: str,
+        status: str,
+        *,
+        worker_id: str,
+    ) -> None:
+        steps = self._updated_steps(run, step_name, status)
+        updated = self._supabase.update_row(
+            "analysis_runs",
+            payload={"steps_json": steps, "current_step": step_name},
+            filters={
+                "id": str(run["id"]),
+                "attempt_count": str(run["attempt_count"]),
+                "worker_id": worker_id,
+                "status": "running",
+            },
+        )
+        run["steps_json"] = steps
+        run["current_step"] = step_name
+        logger.info("Analysis progress. analysis_run_id=%s step=%s status=%s", updated["id"], step_name, status)
+
+    @staticmethod
+    def _updated_steps(run: dict[str, Any], step_name: str, status: str) -> list[dict[str, object]]:
+        steps = [dict(step) for step in (run.get("steps_json") or _new_progress_steps())]
+        now = iso_now()
+        for step in steps:
+            if step.get("name") != step_name:
+                continue
+            step["status"] = status
+            if status == "running":
+                step["startedAt"] = step.get("startedAt") or now
+                step["completedAt"] = None
+            elif status in {"completed", "failed"}:
+                step["completedAt"] = now
+            return steps
+        raise ValueError(f"Unknown progress step '{step_name}'.")
 
     def create_placeholder_run(
         self,
@@ -99,10 +294,10 @@ class AnalysisRunService:
             "analysis_runs",
             {
                 "feedback_set_id": feedback_set_id,
-                "status": "completed",
-                "current_step": "generate_dashboard",
+                "status": "running",
+                "current_step": "generate_insights",
                 "started_at": started_at,
-                "completed_at": started_at,
+                "completed_at": None,
                 "error_message": None,
                 "metadata_json": metadata,
             },
@@ -112,42 +307,61 @@ class AnalysisRunService:
             feedback_set_id,
             analysis_run["id"],
         )
-        dataset_id = self._resolve_demo_product_id(
-            analysis_target=analysis_target,
-            sources=sources,
-            feedback_items=feedback_items,
-        )
-        synthesis_result = self._synthesis_service.synthesize(
-            SynthesisRequest(
-                analysis_run_id=str(analysis_run["id"]),
-                analysis_goal=analysis_goal,
-                product_name=str(analysis_target["name"]),
-                product_description=str(analysis_target["description"]),
-                completed_at=str(analysis_run["completed_at"]),
-                dataset_id=dataset_id,
+        try:
+            dataset_id = self._resolve_demo_product_id(
+                analysis_target=analysis_target,
                 sources=sources,
-                feedback_items=[
-                    self._normalize_feedback_item(
-                        dataset_id,
-                        item,
-                    )
-                    for item in feedback_items
-                ],
+                feedback_items=feedback_items,
             )
-        )
-        metadata.update(synthesis_result.metadata)
-        self._supabase.update_row(
-            "analysis_runs",
-            payload={"metadata_json": metadata},
-            filters={"id": str(analysis_run["id"])},
-        )
-        self._supabase.insert_row(
-            "dashboard_summaries",
-            {
-                "analysis_run_id": analysis_run["id"],
-                "summary_payload": synthesis_result.dashboard_payload.model_dump(by_alias=True),
-            },
-        )
+            synthesis_result = self._synthesis_service.synthesize(
+                SynthesisRequest(
+                    analysis_run_id=str(analysis_run["id"]),
+                    analysis_goal=analysis_goal,
+                    product_name=str(analysis_target["name"]),
+                    product_description=str(analysis_target["description"]),
+                    completed_at=iso_now(),
+                    dataset_id=dataset_id,
+                    sources=sources,
+                    feedback_items=[
+                        self._normalize_feedback_item(dataset_id, item)
+                        for item in feedback_items
+                    ],
+                )
+            )
+            metadata.update(synthesis_result.metadata)
+            self._supabase.insert_row(
+                "dashboard_summaries",
+                {
+                    "analysis_run_id": analysis_run["id"],
+                    "summary_payload": synthesis_result.dashboard_payload.model_dump(by_alias=True),
+                },
+            )
+            completed_at = iso_now()
+            self._supabase.update_row(
+                "analysis_runs",
+                payload={
+                    "metadata_json": metadata,
+                    "status": "completed",
+                    "current_step": "save_dashboard",
+                    "completed_at": completed_at,
+                },
+                filters={"id": str(analysis_run["id"])},
+            )
+        except Exception:
+            logger.exception("Synchronous analysis failed. analysis_run_id=%s", analysis_run["id"])
+            try:
+                self._supabase.update_row(
+                    "analysis_runs",
+                    payload={
+                        "status": "failed",
+                        "error_message": "Analysis failed. Please start a new analysis.",
+                        "completed_at": iso_now(),
+                    },
+                    filters={"id": str(analysis_run["id"])},
+                )
+            except Exception:
+                logger.exception("Could not persist synchronous analysis failure. analysis_run_id=%s", analysis_run["id"])
+            raise
         logger.info(
             "Dashboard summary persisted. feedback_set_id=%s analysis_run_id=%s synthesis_method=%s",
             feedback_set_id,
@@ -155,6 +369,9 @@ class AnalysisRunService:
             metadata.get("synthesis_method"),
         )
         analysis_run["metadata_json"] = metadata
+        analysis_run["status"] = "completed"
+        analysis_run["current_step"] = "save_dashboard"
+        analysis_run["completed_at"] = completed_at
         logger.info(
             "Synthesize response completed. feedback_set_id=%s analysis_run_id=%s",
             feedback_set_id,
@@ -368,7 +585,7 @@ class AnalysisRunService:
             feedbackSetId=str(row["feedback_set_id"]),
             status=str(row["status"]),
             currentStep=row.get("current_step"),
-            steps=[],
+            steps=row.get("steps_json") if isinstance(row.get("steps_json"), list) else [],
             startedAt=row.get("started_at"),
             completedAt=row.get("completed_at"),
             errorMessage=row.get("error_message"),

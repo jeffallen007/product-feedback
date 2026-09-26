@@ -191,12 +191,15 @@ Frontend env vars:
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_USE_BACKEND_DEMO=true
+NEXT_PUBLIC_USE_ASYNC_SYNTHESIS=false
 MCP_SERVER_URL=https://product-feedback-mcp-production.up.railway.app/mcp
 OPENAI_API_KEY=
 OPENAI_MODEL_AGENT=gpt-4.1-mini
 ```
 
 `MCP_SERVER_URL`, `OPENAI_API_KEY`, and `OPENAI_MODEL_AGENT` are server-side only. The `/mcp-demo` page calls `POST /api/mcp-demo/run`; that route asks the model to choose MCP tools and executes selected tools through the deployed MCP service over Streamable HTTP. If `OPENAI_API_KEY` is missing, the agent demo returns a clear error instead of falling back to a scripted workflow.
+
+Set `NEXT_PUBLIC_USE_ASYNC_SYNTHESIS=true` only after the progress migration, API, and Railway worker are deployed. The standard web flow then enters the processing view immediately and polls persisted run progress. With the flag off, the existing synchronous synthesis endpoint remains available.
 
 ### Backend Setup
 
@@ -398,6 +401,10 @@ Required Vercel env vars:
 NEXT_PUBLIC_API_BASE_URL=https://product-feedback-production.up.railway.app
 NEXT_PUBLIC_USE_BACKEND_DEMO=true
 ```
+
+After deploying the migration, API, and worker, set
+`NEXT_PUBLIC_USE_ASYNC_SYNTHESIS=true` and redeploy the frontend to enable live
+progress. Leave the flag unset until then.
 
 Do not put Supabase service role credentials in Vercel.
 

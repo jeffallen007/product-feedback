@@ -111,6 +111,30 @@ class SupabaseRestClient:
     ) -> dict[str, Any]:
         return self._write_request("patch", table, payload, filters=filters)
 
+    def rpc(self, function_name: str, payload: dict[str, Any]) -> Any:
+        headers = {
+            "apikey": self._service_role_key,
+            "Authorization": f"Bearer {self._service_role_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                response = client.post(
+                    f"{self._base_url}/rest/v1/rpc/{function_name}",
+                    headers=headers,
+                    json=payload,
+                )
+        except httpx.HTTPError as exc:
+            raise SupabaseInsertError(
+                f"Supabase RPC request failed for '{function_name}'.",
+            ) from exc
+
+        if response.status_code >= 400:
+            raise SupabaseInsertError(
+                f"Supabase RPC failed for '{function_name}': {response.text}",
+            )
+        return response.json()
+
     def _write_request(
         self,
         method: str,

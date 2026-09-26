@@ -85,6 +85,20 @@ export interface SynthesizeFeedbackSetResponse {
   analysisRun: AnalysisRun
 }
 
+export interface QueueAnalysisRunRequest {
+  feedbackSetId: string
+  analysisGoal: AnalysisGoal
+  requestKey: string
+}
+
+export interface QueueAnalysisRunResponse {
+  analysisRun: AnalysisRun
+}
+
+export interface AnalysisRunProgressResponse {
+  analysisRun: AnalysisRun
+}
+
 export interface GetAnalysisRunRequest {
   analysisRunId: string
 }

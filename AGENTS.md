@@ -18,6 +18,8 @@ product name and description) and the feedback sources.
   otherwise it uses in-memory mock data.
 - The FastAPI backend lives in `apps/api` and is documented as deployed to
   Railway. It owns ingestion, synthesis, chat, and privileged Supabase access.
+  A separate Railway worker is required when the live progress flag is enabled;
+  it processes queued analysis runs. The existing synchronous route serves MCP.
 - Supabase stores feedback sets, sources, feedback items, analysis runs,
   dashboard summaries, and chat messages for backend-backed flows.
 - `apps/mcp` is a separate Railway MCP service that calls the FastAPI backend.
@@ -31,6 +33,8 @@ product name and description) and the feedback sources.
   upload. X Search is marked as a future feature in the UI; do not treat it as
   a working input path unless the task explicitly implements it. MCP currently
   exposes pasted feedback ingestion, not CSV or demo-source ingestion.
+- With `NEXT_PUBLIC_USE_ASYNC_SYNTHESIS=true`, the web processing view reports
+  completed request and worker stages. Keep its labels tied to real operations.
 
 Verify these descriptions against the current code before relying on them;
 update this file when the architecture changes.
