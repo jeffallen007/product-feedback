@@ -157,6 +157,18 @@ async function createMockFeedbackSet(
 export async function addDemoSource(
   input: AddDemoSourceRequest,
 ): Promise<AddDemoSourceResponse> {
+  if (isBackendDemoEnabled()) {
+    return backendRequest<AddDemoSourceResponse>(
+      `/feedback-sets/${input.feedbackSetId}/sources/demo`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          demoProductId: BACKEND_DEMO_PRODUCT_IDS[input.demoProductId],
+        }),
+      },
+    )
+  }
+
   await delay(80)
   const product = DEMO_PRODUCTS.find((entry) => entry.id === input.demoProductId)
   const source = createSource({
@@ -472,15 +484,10 @@ async function runBackendDemoAnalysis(
     }),
   })
 
-  await backendRequest<AddDemoSourceResponse>(
-    `/feedback-sets/${createResponse.feedbackSet.id}/sources/demo`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        demoProductId: BACKEND_DEMO_PRODUCT_IDS[input.demoProductId],
-      }),
-    },
-  )
+  await addDemoSource({
+    feedbackSetId: createResponse.feedbackSet.id,
+    demoProductId: input.demoProductId,
+  })
 
   const synthesizeResponse = await backendRequest<{
     analysisRun: { id: string }

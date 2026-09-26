@@ -53,6 +53,41 @@ describe("analysis-service custom sources", () => {
     })
   })
 
+  it("ingests a demo source through the backend for a backend-created feedback set", async () => {
+    vi.stubEnv("NEXT_PUBLIC_USE_BACKEND_DEMO", "true")
+    vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.test")
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        analysisTarget: { id: "target_123" },
+        feedbackSet: { id: "set_456" },
+      }), { status: 201, headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        source: { id: "source_789", feedbackSetId: "set_456", itemCount: 750 },
+      }), { status: 201, headers: { "Content-Type": "application/json" } }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { createFeedbackSet, addDemoSource } = await import("@/lib/services/analysis-service")
+    const { feedbackSet } = await createFeedbackSet({
+      analysisTarget: { name: "Productivity Tool", description: "Demo product" },
+      analysisGoal: "Full Product Feedback Synthesis",
+    })
+    const { source } = await addDemoSource({
+      feedbackSetId: feedbackSet.id,
+      demoProductId: "productivity",
+    })
+
+    expect(source.itemCount).toBe(750)
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://api.example.test/feedback-sets/set_456/sources/demo",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ demoProductId: "productivity_tool" }),
+      }),
+    )
+  })
+
   it("uses the backend for create feedback set, pasted source ingest, and synthesis when enabled", async () => {
     vi.stubEnv("NEXT_PUBLIC_USE_BACKEND_DEMO", "true")
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "https://api.example.test")
