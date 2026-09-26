@@ -5,8 +5,14 @@ This runbook applies to [PR #1](https://github.com/jeffallen007/product-feedback
 ## 1. Prepare and review
 
 1. Review PR #1, including the migration, worker, API, frontend changes, tests, and implementation plan. The PR's Vercel preview build passed when this runbook was written; check its latest status before merging.
+
 2. Record the currently healthy Vercel and Railway API deployment IDs so they are easy to find if rollback is needed.
+--> Vercel API Deployment ID:  dpl_BjsQZWs8sb97SkW7XqLqmfiGaE1G
+--> Railway API Deployment ID:  2f1e0021-da66-40b7-9330-fecc13183d1c
+
 3. In the Supabase `product-feedback` project, check **Database → Backups** for an available backup. Backup availability depends on the plan. See the [Supabase backup guide](https://supabase.com/docs/guides/platform/backups).
+--> 26 Sep 2026 07:29:26 (+0000)
+
 4. Confirm that the Vercel Production value of `NEXT_PUBLIC_USE_ASYNC_SYNTHESIS` is absent or `false`. Keep it that way through step 4.
 
 ## 2. Apply the migration, then merge
